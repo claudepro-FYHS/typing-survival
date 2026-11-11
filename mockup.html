@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>打字生存 — 遊戲畫面概念圖</title>
+<style>
+  :root{
+    --ink:#0d1110; --panel:rgba(10,14,13,.82); --line:rgba(255,255,255,.14);
+    --text:#eef2ee; --muted:#93a09a;
+    --me:#ffd23f; --p2:#4cc3ff; --p3:#ff7ab8; --p4:#7be36a;
+    --danger:#ff4b3e; --hp:#58d66b;
+    --ui:"Bahnschrift","Microsoft JhengHei UI","Microsoft JhengHei",sans-serif;
+    --mono:"Consolas","Cascadia Mono",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1280px;height:720px;overflow:hidden;background:#000}
+  #stage{position:relative;width:1280px;height:720px;font-family:var(--ui);color:var(--text);overflow:hidden}
+  #world{position:absolute;inset:0}
+  .vignette{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(ellipse 620px 430px at 640px 372px,rgba(255,214,150,.10) 0,rgba(0,0,0,0) 45%,rgba(0,0,0,.62) 100%)}
+  .redge{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 90px rgba(255,40,30,.16)}
+
+  /* word labels */
+  .tag{position:absolute;transform:translate(-50%,-100%);font-family:var(--mono);font-weight:700;font-size:19px;
+    letter-spacing:1.5px;padding:3px 9px 4px;background:rgba(8,10,10,.86);border:1.5px solid rgba(255,255,255,.22);
+    border-radius:5px;white-space:nowrap;line-height:1.1}
+  .tag i{font-style:normal}
+  .tag .d{color:#5d6a64;text-decoration:line-through;text-decoration-thickness:1.5px}
+  .tag .n{color:#fff;border-bottom:2px solid currentColor}
+  .tag.active{border-color:var(--me);box-shadow:0 0 0 2px rgba(255,210,63,.25),0 0 18px rgba(255,210,63,.45)}
+  .tag.active .d{color:var(--me);text-decoration:none}
+  .tag.held{border-color:rgba(255,210,63,.55);border-style:dashed}
+  .tag.held .d{color:#b9962c;text-decoration:none}
+  .tag.mate{border-color:var(--p2)} .tag.mate .d{color:var(--p2);text-decoration:none}
+  .tag.big{font-size:22px;border-color:#c77dff}
+  .tag.item{border-color:#ffe9a3;color:#ffe9a3;background:rgba(60,44,6,.9);font-size:17px}
+  .tag small{display:block;font-family:var(--ui);font-size:10.5px;letter-spacing:.5px;font-weight:600;color:var(--muted);text-align:center;margin-top:2px}
+  .tag.held small{color:#d2ad3d}.tag.active small{color:var(--me)}
+  .bar{height:4px;background:#2a1414;border-radius:2px;margin-top:4px;overflow:hidden}
+  .bar b{display:block;height:100%;background:#c77dff}
+  .name{position:absolute;transform:translate(-50%,0);font-size:11px;font-weight:700;letter-spacing:.4px;
+    padding:1px 6px;border-radius:8px;background:rgba(0,0,0,.6)}
+  .float{position:absolute;font-weight:800;font-size:18px;color:var(--me);text-shadow:0 2px 0 #000}
+
+  /* HUD */
+  .hud{position:absolute;background:var(--panel);border:1px solid var(--line);border-radius:6px}
+  .team{left:16px;top:14px;width:214px;padding:8px 10px}
+  .team .row{display:grid;grid-template-columns:12px 1fr 40px;align-items:center;gap:8px;padding:4px 0;font-size:13px}
+  .team .dot{width:10px;height:10px;border-radius:50%}
+  .team .hpb{grid-column:2/4;height:5px;background:#27302c;border-radius:3px;overflow:hidden;margin-top:-1px}
+  .team .hpb b{display:block;height:100%;background:var(--hp)}
+  .team .wpm{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right}
+  .team .role{font-size:10.5px;color:var(--muted);margin-left:5px}
+  .room{font-size:10.5px;color:var(--muted);letter-spacing:.6px;border-top:1px solid var(--line);margin-top:5px;padding-top:6px;display:flex;justify-content:space-between}
+
+  .wave{left:50%;top:14px;transform:translateX(-50%);padding:7px 20px 9px;text-align:center;min-width:270px}
+  .wave h1{font-size:21px;letter-spacing:3px;font-weight:700}
+  .wave h1 span{color:var(--danger)}
+  .wave .sub{font-size:11.5px;color:var(--muted);letter-spacing:1px;margin-top:1px}
+  .wave .prog{height:4px;background:#27302c;border-radius:2px;margin-top:6px;overflow:hidden}
+  .wave .prog b{display:block;width:40%;height:100%;background:var(--danger)}
+
+  .score{right:16px;top:14px;padding:8px 14px;text-align:right;min-width:190px}
+  .score .big{font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:1px}
+  .score .line{font-size:12px;color:var(--muted);display:flex;justify-content:flex-end;gap:14px;margin-top:2px;align-items:center}
+  .coin{display:inline-block;width:11px;height:11px;border-radius:50%;background:#ffc93c;border:2px solid #a87400;vertical-align:-1px;margin-right:4px}
+  .combo{position:absolute;right:22px;top:104px;text-align:right;font-weight:800;font-style:italic;color:var(--me);
+    font-size:34px;line-height:1;text-shadow:0 3px 0 #000}
+  .combo small{display:block;font-size:11px;letter-spacing:3px;font-style:normal;color:#fff;opacity:.8;margin-top:3px}
+
+  .mode{left:16px;bottom:16px;padding:9px 12px;width:252px}
+  .mode .badge{display:inline-block;background:var(--me);color:#191300;font-weight:800;font-size:12px;letter-spacing:1.5px;padding:2px 8px;border-radius:3px}
+  .mode p{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.45}
+  .mode .char{display:flex;align-items:center;gap:9px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line);font-size:12.5px}
+  .mode .ava{width:30px;height:30px;border-radius:5px;background:#3a2f0c;border:2px solid var(--me);display:grid;place-items:center;font-weight:800;color:var(--me)}
+  .mode .char span{color:var(--muted);font-size:11px;display:block}
+  kbd{font-family:var(--mono);font-size:11px;font-weight:700;background:#222a27;border:1px solid #47534d;border-bottom-width:2px;border-radius:3px;padding:0 5px;color:#fff}
+
+  .items{left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:8px;padding:8px}
+  .slot{width:62px;height:62px;border-radius:5px;background:#161c1a;border:1px solid #3a4540;position:relative;display:grid;place-items:center}
+  .slot kbd{position:absolute;left:4px;top:4px}
+  .slot .q{position:absolute;right:5px;bottom:3px;font-family:var(--mono);font-weight:700;font-size:13px}
+  .slot .lab{position:absolute;left:0;right:0;bottom:-17px;text-align:center;font-size:10.5px;color:var(--muted)}
+  .slot.empty{opacity:.38}
+  .slot.new{border-color:#ffe9a3;box-shadow:0 0 12px rgba(255,233,163,.5)}
+  .items{padding-bottom:24px}
+
+  .stream{position:absolute;left:50%;bottom:116px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+  .key{font-family:var(--mono);font-weight:700;font-size:17px;width:30px;height:30px;display:grid;place-items:center;border-radius:5px;background:rgba(8,10,10,.86);border:1.5px solid #47534d;color:#b9962c}
+  .key.now{color:#191300;background:var(--me);border-color:var(--me);box-shadow:0 0 14px rgba(255,210,63,.6)}
+  .arrow{font-size:10.5px;color:var(--muted);margin:0 2px 0 -2px}
+  .stats{right:16px;bottom:16px;padding:9px 14px;display:flex;gap:18px}
+  .stats div{text-align:center;font-size:10.5px;color:var(--muted);letter-spacing:1px}
+  .stats b{display:block;font-family:var(--mono);font-size:22px;color:var(--text);letter-spacing:0}
+  .mock{position:absolute;right:16px;bottom:92px;font-size:10px;letter-spacing:2px;color:rgba(255,255,255,.35)}
+</style>
+</head>
+<body>
+<div id="stage">
+  <svg id="world" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div class="vignette"></div><div class="redge"></div>
+  <div id="tags"></div>
+
+  <div class="hud team">
+    <div class="row"><i class="dot" style="background:var(--me)"></i><div>Edwin（你）<span class="role">醫護兵</span></div><div class="wpm">62wpm</div><div class="hpb"><b style="width:74%"></b></div></div>
+    <div class="row"><i class="dot" style="background:var(--p2)"></i><div>JiaWei<span class="role">工程師</span></div><div class="wpm">48wpm</div><div class="hpb"><b style="width:100%"></b></div></div>
+    <div class="row"><i class="dot" style="background:var(--p3)"></i><div>Mei<span class="role">狙擊手</span></div><div class="wpm">71wpm</div><div class="hpb"><b style="width:38%;background:#ffb02e"></b></div></div>
+    <div class="row"><i class="dot" style="background:var(--p4)"></i><div>Aiden<span class="role">爆破手</span></div><div class="wpm">39wpm</div><div class="hpb"><b style="width:88%"></b></div></div>
+    <div class="room"><span>房號 K7QX</span><span>4 / 6 人</span></div>
+  </div>
+
+  <div class="hud wave">
+    <h1>第 <span>7</span> 波</h1>
+    <div class="sub">剩餘喪屍 18 / 30　·　存活 04:12</div>
+    <div class="prog"><b></b></div>
+  </div>
+
+  <div class="hud score">
+    <div class="big">12,480</div>
+    <div class="line"><span><i class="coin"></i>356</span><span>擊殺 87</span></div>
+  </div>
+  <div class="combo">x24<small>COMBO</small></div>
+
+  <div class="stream">
+    <span>你的輸入</span>
+    <div class="key">a</div><div class="key">p</div><span class="arrow">apple</span>
+    <div class="key now">b</div><span class="arrow" style="color:var(--me)">→ 切換到 boy</span>
+  </div>
+
+  <div class="hud items">
+    <div class="slot"><kbd>1</kbd>
+      <svg width="34" height="34" viewBox="0 0 34 34"><circle cx="16" cy="20" r="10" fill="#2b2f33" stroke="#8b949e" stroke-width="2"/><path d="M22 12l5-6" stroke="#c9a15a" stroke-width="2.5"/><circle cx="28" cy="5" r="2.5" fill="#ff7a2e"/></svg>
+      <span class="q">2</span><span class="lab">炸彈</span></div>
+    <div class="slot"><kbd>2</kbd>
+      <svg width="34" height="34" viewBox="0 0 34 34" stroke="#8fe3ff" stroke-width="2.5" stroke-linecap="round"><path d="M17 4v26M5.7 10.5l22.6 13M5.7 23.5l22.6-13"/></svg>
+      <span class="q">1</span><span class="lab">冰凍</span></div>
+    <div class="slot new"><kbd>3</kbd>
+      <svg width="34" height="34" viewBox="0 0 34 34"><rect x="5" y="8" width="24" height="20" rx="3" fill="#f3f3f3"/><path d="M17 12v12M11 18h12" stroke="#e33b3b" stroke-width="4"/></svg>
+      <span class="q">1</span><span class="lab" style="color:#ffe9a3">醫療包 NEW</span></div>
+    <div class="slot empty"><kbd>4</kbd>
+      <svg width="34" height="34" viewBox="0 0 34 34"><rect x="9" y="18" width="16" height="10" fill="#8b949e"/><rect x="14" y="5" width="6" height="15" fill="#c2c9d0"/></svg>
+      <span class="q">0</span><span class="lab">自動砲台</span></div>
+  </div>
+
+  <div class="hud mode">
+    <span class="badge">自由模式</span>
+    <p>打到一半可隨時改打別的敵人，<br>已打的進度會保留（虛線框）。</p>
+    <div class="char"><div class="ava">醫</div><div>醫護兵 · 全隊回血<span><kbd>空白鍵</kbd> 技能就緒</span></div></div>
+  </div>
+
+  <div class="hud stats">
+    <div><b>62</b>WPM</div><div><b>96%</b>準確率</div>
+  </div>
+  <div class="mock">概念圖 MOCKUP</div>
+</div>
+
+<script>
+const NS='http://www.w3.org/2000/svg', svg=document.getElementById('world'), tags=document.getElementById('tags');
+const C={x:640,y:372};
+let out='';
+// ---------- ground: a street intersection at night ----------
+out+=`<defs>
+  <pattern id="grass" width="26" height="26" patternUnits="userSpaceOnUse"><rect width="26" height="26" fill="#18221b"/><path d="M4 7l2-4M17 19l2-4M21 6l1-3M9 21l1-3" stroke="#22321f" stroke-width="1.5"/></pattern>
+  <pattern id="asph" width="40" height="40" patternUnits="userSpaceOnUse"><rect width="40" height="40" fill="#252a2b"/><circle cx="7" cy="9" r="1" fill="#2e3435"/><circle cx="27" cy="30" r="1.2" fill="#1f2324"/><circle cx="33" cy="12" r=".8" fill="#2e3435"/></pattern>
+  <radialGradient id="fire"><stop offset="0" stop-color="#ffb347" stop-opacity=".55"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
+  <filter id="glow"><feGaussianBlur stdDeviation="3"/></filter>
+</defs>
+<rect width="1280" height="720" fill="url(#grass)"/>
+<rect x="0" y="262" width="1280" height="220" fill="url(#asph)"/>
+<rect x="520" y="0" width="240" height="720" fill="url(#asph)"/>
+<g stroke="#5b6162" stroke-width="3" stroke-dasharray="26 22" opacity=".7"><path d="M0 372H500M780 372H1280M640 0V242M640 502V720"/></g>
+<g stroke="#3a4041" stroke-width="2" fill="none"><path d="M0 262H520V0M760 0V262H1280M0 482H520V720M760 720V482H1280"/></g>
+<g fill="#4a5051" opacity=".55">${[0,1,2,3,4,5].map(i=>`<rect x="${532+i*38}" y="244" width="22" height="14"/><rect x="${532+i*38}" y="486" width="22" height="14"/>`).join('')}</g>
+<!-- buildings / wrecks -->
+<rect x="-10" y="-10" width="250" height="150" fill="#101514" stroke="#2a3330" stroke-width="3"/>
+<rect x="1010" y="590" width="290" height="150" fill="#101514" stroke="#2a3330" stroke-width="3"/>
+<rect x="1100" y="-10" width="200" height="80" fill="#101514" stroke="#2a3330" stroke-width="3"/>
+<g transform="translate(905 418) rotate(-18)"><rect x="-46" y="-22" width="92" height="44" rx="10" fill="#3b2623" stroke="#5a3a35" stroke-width="2"/><rect x="-18" y="-17" width="40" height="34" rx="5" fill="#16191a"/></g>
+<g transform="translate(408 318) rotate(74)"><rect x="-44" y="-21" width="88" height="42" rx="10" fill="#1e2f3d" stroke="#30495e" stroke-width="2"/><rect x="-16" y="-16" width="38" height="32" rx="5" fill="#16191a"/></g>
+<!-- barricade + campfire light -->
+<circle cx="640" cy="372" r="210" fill="url(#fire)"/>
+<g fill="#6b5a3c" stroke="#3d3220" stroke-width="2">${[[-88,-30,70],[-70,52,-40],[84,-44,-60],[92,36,65],[-10,-88,5],[14,92,-8]].map(([dx,dy,r])=>`<rect x="-22" y="-8" width="44" height="16" rx="7" transform="translate(${C.x+dx} ${C.y+dy}) rotate(${r})"/>`).join('')}</g>
+`;
+
+// ---------- enemies ----------
+const Z=[
+ {x:412,y:232,w:'apple',t:2,st:'held',note:'進度保留'},
+ {x:838,y:290,w:'boy',t:1,st:'active',note:'射擊中'},
+ {x:238,y:452,w:'window',t:0},
+ {x:1030,y:500,w:'catastrophe',t:0,k:'tank',hp:70},
+ {x:612,y:150,w:'run',t:0,k:'runner'},
+ {x:1090,y:250,w:'ghost',t:3,st:'mate'},
+ {x:850,y:612,w:'key',t:0,k:'runner'},
+ {x:400,y:600,w:'school',t:0},
+ {x:120,y:268,w:'tiger',t:0},
+ {x:930,y:150,w:'piano',t:0},
+];
+const ang=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
+function zombie(z){
+  const s=z.k==='tank'?1.75:z.k==='runner'?.8:1.1;
+  const skin=z.k==='tank'?'#7d5a94':z.k==='runner'?'#b9c46a':'#6f9a62';
+  const cloth=z.k==='tank'?'#3a2648':z.k==='runner'?'#5a4a2a':'#3c4a55';
+  return `<g transform="translate(${z.x} ${z.y}) rotate(${ang(z,C)}) scale(${s})">
+    <ellipse cx="-2" cy="2" rx="15" ry="17" fill="#000" opacity=".35"/>
+    <rect x="3" y="-13" width="19" height="5.5" rx="2.5" fill="${skin}"/><rect x="3" y="7.5" width="17" height="5.5" rx="2.5" fill="${skin}"/>
+    <ellipse rx="9.5" ry="14" fill="${cloth}" stroke="#0b0d0d" stroke-width="1.5"/>
+    <path d="M-6 -6l5 4M-4 6l6 -3" stroke="#7a1f1f" stroke-width="2"/>
+    <circle cx="3" r="8" fill="${skin}" stroke="#0b0d0d" stroke-width="1.5"/>
+    <circle cx="7" cy="-3" r="1.6" fill="#ff3b2e"/><circle cx="7" cy="3" r="1.6" fill="#ff3b2e"/>
+  </g>`;
+}
+// dead zombie splat
+out+=`<g transform="translate(764 468)"><ellipse rx="26" ry="17" fill="#5c1414" opacity=".8"/><circle cx="22" cy="-14" r="5" fill="#5c1414" opacity=".8"/><circle cx="-26" cy="10" r="4" fill="#5c1414" opacity=".8"/><ellipse rx="10" ry="13" fill="#2f3a42" transform="rotate(40)"/><circle cx="8" cy="7" r="7" fill="#57784d"/></g>`;
+// freeze patch (item effect) around tiger
+Z.forEach(z=>out+=zombie(z));
+
+// item crate on the ground
+out+=`<circle cx="538" cy="512" r="30" fill="#ffe9a3" opacity=".18" filter="url(#glow)"/>
+<g transform="translate(538 512) rotate(12)"><rect x="-15" y="-15" width="30" height="30" rx="3" fill="#b98a3a" stroke="#ffe9a3" stroke-width="2"/><path d="M-15 -15L15 15M15 -15L-15 15" stroke="#7a5a22" stroke-width="3"/></g>`;
+
+// ---------- players ----------
+const P=[
+ {x:640,y:372,c:'#ffd23f',n:'你',to:Z[1],jacket:'#c9c9c9',me:1},
+ {x:596,y:346,c:'#4cc3ff',n:'JiaWei',to:Z[5],jacket:'#2f5d8a'},
+ {x:684,y:404,c:'#ff7ab8',n:'Mei',to:Z[3],jacket:'#5b3350'},
+ {x:604,y:412,c:'#7be36a',n:'Aiden',to:Z[7],jacket:'#3d5a2c'},
+];
+// tracers
+const me=P[0], tg=Z[1], a=ang(me,tg)*Math.PI/180;
+const mx=me.x+Math.cos(a)*34, my=me.y+Math.sin(a)*34;
+out+=`<line x1="${mx}" y1="${my}" x2="${tg.x}" y2="${tg.y}" stroke="#ffd23f" stroke-width="7" opacity=".35" filter="url(#glow)"/>
+<line x1="${mx}" y1="${my}" x2="${tg.x}" y2="${tg.y}" stroke="#fff3c4" stroke-width="2.2" stroke-linecap="round"/>
+<g transform="translate(${tg.x-8} ${tg.y+2})"><path d="M0 -13L4 -4L13 0L4 4L0 13L-4 4L-13 0L-4 -4Z" fill="#fff3c4"/><circle r="5" fill="#ff7a2e"/></g>`;
+{ // teammate tracer (blue, faint)
+ const p=P[1],t=Z[5],b=ang(p,t)*Math.PI/180;
+ out+=`<line x1="${p.x+Math.cos(b)*34}" y1="${p.y+Math.sin(b)*34}" x2="${t.x}" y2="${t.y}" stroke="#4cc3ff" stroke-width="1.6" opacity=".55" stroke-dasharray="14 10"/>`;
+}
+P.forEach(p=>{
+  const r=ang(p,p.to);
+  out+=`<circle cx="${p.x}" cy="${p.y}" r="${p.me?23:19}" fill="none" stroke="${p.c}" stroke-width="${p.me?3:2}" opacity="${p.me?1:.75}"/>
+  <g transform="translate(${p.x} ${p.y}) rotate(${r})">
+    <rect x="6" y="2" width="26" height="5" rx="1.5" fill="#15181a" stroke="#555" stroke-width="1"/>
+    <ellipse rx="9" ry="13.5" fill="${p.jacket}" stroke="#0b0d0d" stroke-width="1.5"/>
+    <circle cx="1" r="7.5" fill="#2a2018" stroke="#0b0d0d" stroke-width="1.5"/>
+    ${p.me?'<path d="M32 4.5l12 -6l-4 6l4 6z" fill="#ffd23f"/>':''}
+  </g>`;
+});
+svg.innerHTML=out;
+
+// ---------- labels ----------
+let h='';
+Z.forEach(z=>{
+  const off=z.k==='tank'?46:z.k==='runner'?26:32;
+  const done=z.w.slice(0,z.t), next=z.w[z.t]||'', rest=z.w.slice(z.t+1);
+  const word=`<i class="d">${done}</i>${z.st==='active'||z.st==='held'?`<i class="n">${next}</i>`:next}${rest}`;
+  h+=`<div class="tag ${z.st||''} ${z.k==='tank'?'big':''}" style="left:${z.x}px;top:${z.y-off}px">${word}`
+   +(z.hp?`<div class="bar"><b style="width:${z.hp}%"></b></div>`:'')
+   +(z.note?`<small>${z.note}</small>`:'')+`</div>`;
+});
+h+=`<div class="tag item" style="left:538px;top:488px">medkit<small style="color:#ffe9a3">打字拾取道具</small></div>`;
+P.forEach(p=>h+=`<div class="name" style="left:${p.x}px;top:${p.y+(p.me?26:21)}px;color:${p.c}">${p.n}</div>`);
+h+=`<div class="float" style="left:786px;top:432px">+120</div>`;
+tags.innerHTML=h;
+</script>
+</body>
+</html>

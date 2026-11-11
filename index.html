@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>打字求生 Typing Survival</title>
+<style>
+  :root{
+    --ink:#1f2a33; --panel:rgba(16,24,29,.86); --line:rgba(255,255,255,.16); --text:#f3f6f4; --muted:#a7b4b0;
+    --me:#ffd23f; --hp:#5fdc74; --danger:#ff5a4d;
+    --ui:"Trebuchet MS","Microsoft YaHei","PingFang SC",sans-serif; --mono:Consolas,"Cascadia Mono",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#16201c;overflow:hidden;font-family:var(--ui);color:var(--text);user-select:none}
+  #stage{position:absolute;left:50%;top:50%;width:1280px;height:720px;transform-origin:center;overflow:hidden;background:#5c9f6a}
+  #cv{position:absolute;inset:0;width:1280px;height:720px}
+  button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+  button:focus-visible{outline:3px solid var(--me);outline-offset:2px}
+
+  /* HUD */
+  #hud{position:absolute;inset:0;pointer-events:none;display:none}
+  #hud.on{display:block}
+  .box{position:absolute;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+  #hpbox{left:16px;top:14px;width:290px;padding:9px 12px}
+  #hpbox .top{display:flex;justify-content:space-between;font-size:13px;font-weight:700;margin-bottom:5px}
+  #hp-bar{height:12px;background:#2a3a35;border-radius:6px;overflow:hidden}
+  #hp-fill{height:100%;background:var(--hp);border-radius:6px;transition:width .15s}
+  #hp-fill.low{background:var(--danger)}
+  #hud-mode{font-size:11.5px;color:var(--muted);margin-top:6px;letter-spacing:.5px}
+  #wavebox{left:50%;top:14px;transform:translateX(-50%);padding:6px 22px 8px;text-align:center;min-width:240px}
+  #hud-wave{font-size:22px;font-weight:800;letter-spacing:2px}
+  #hud-left{font-size:12px;color:var(--muted)}
+  #scorebox{right:16px;top:14px;padding:7px 14px;text-align:right;min-width:180px}
+  #hud-score{font-family:var(--mono);font-size:28px;font-weight:700}
+  #hud-kills{font-size:12px;color:var(--muted)}
+  #hud-combo{position:absolute;right:22px;top:96px;text-align:right;font-weight:800;font-style:italic;color:var(--me);font-size:36px;line-height:1;
+    -webkit-text-stroke:5px var(--ink);paint-order:stroke fill;transition:opacity .2s}
+  #hud-combo small{display:block;font-size:12px;font-style:normal;color:#fff;-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;margin-top:4px}
+  #items{left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:8px;padding:8px 8px 24px}
+  .slot{width:60px;height:60px;border-radius:8px;background:#18232a;border:2px solid #4a5a63;position:relative;display:grid;place-items:center}
+  .slot kbd{position:absolute;left:4px;top:3px;font-family:var(--mono);font-size:11px;font-weight:700;background:#2a3840;border:1px solid #5a6b74;border-radius:3px;padding:0 4px}
+  .slot .q{position:absolute;right:5px;bottom:2px;font-family:var(--mono);font-weight:700;font-size:14px}
+  .slot .lab{position:absolute;left:-6px;right:-6px;bottom:-19px;text-align:center;font-size:11px;color:var(--muted)}
+  .slot i{width:26px;height:26px;border-radius:50%;border:3px solid var(--ink)}
+  .slot.empty{opacity:.4}
+  .slot.active{border-color:var(--me);box-shadow:0 0 14px rgba(255,210,63,.7)}
+  #statbox{right:16px;bottom:14px;padding:8px 14px;display:flex;gap:18px}
+  #statbox div{text-align:center;font-size:11px;color:var(--muted);letter-spacing:1px}
+  #statbox b{display:block;font-family:var(--mono);font-size:22px;color:var(--text)}
+  #helpbox{left:16px;bottom:14px;padding:8px 12px;font-size:11.5px;color:var(--muted);line-height:1.6}
+  #helpbox kbd{font-family:var(--mono);color:#fff;background:#2a3840;border:1px solid #5a6b74;border-radius:3px;padding:0 4px}
+  #hint{position:absolute;left:50%;top:92px;transform:translateX(-50%);background:var(--danger);color:#fff;font-weight:700;font-size:14px;padding:6px 14px;border-radius:16px;opacity:0;transition:opacity .2s}
+  #hint.on{opacity:1}
+
+  /* screens */
+  .screen{position:absolute;inset:0;display:none;place-items:center;background:rgba(14,26,22,.78)}
+  .screen.on{display:grid}
+  #scr-menu{background:linear-gradient(rgba(14,26,22,.55),rgba(14,26,22,.9)),#5c9f6a}
+  .card{width:640px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px 30px}
+  h1{font-size:44px;letter-spacing:4px;text-align:center}
+  h1 small{display:block;font-size:14px;letter-spacing:6px;color:var(--me);font-weight:700;margin-top:2px}
+  .row{display:grid;grid-template-columns:76px 1fr;align-items:center;gap:12px;margin-top:16px}
+  .row label{font-size:13px;color:var(--muted);letter-spacing:2px}
+  .seg{display:flex;gap:6px}
+  .seg button{flex:1;padding:9px 0;border-radius:8px;background:#22313a;border:2px solid transparent;font-weight:700;font-size:15px}
+  .seg button:hover{background:#2c3f4a}
+  .seg button.sel{background:var(--me);color:#241c00}
+  .desc{grid-column:2;font-size:12.5px;color:var(--muted);margin-top:-8px;min-height:18px}
+  .go{display:block;width:100%;margin-top:22px;padding:14px;border-radius:10px;background:var(--me);color:#241c00;font-size:20px;font-weight:800;letter-spacing:4px}
+  .go:hover{filter:brightness(1.08)}
+  .ghost{display:block;width:100%;margin-top:10px;padding:11px;border-radius:10px;background:#22313a;font-weight:700}
+  #best{text-align:center;font-size:13px;color:var(--muted);margin-top:12px}
+  .how{font-size:12px;color:var(--muted);text-align:center;margin-top:10px;line-height:1.7}
+  #res-score{font-family:var(--mono);font-size:60px;font-weight:700;text-align:center;color:var(--me);margin-top:6px}
+  #res-sub{text-align:center;font-size:13px;color:var(--muted)}
+  #res-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
+  #res-grid div{background:#1c2931;border-radius:8px;padding:10px;text-align:center}
+  #res-grid b{display:block;font-family:var(--mono);font-size:24px}
+  #res-grid span{font-size:12px;color:var(--muted);letter-spacing:1px}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv" width="1280" height="720"></canvas>
+
+  <div id="hud">
+    <div class="box" id="hpbox">
+      <div class="top"><span>生命</span><span id="hp-num">100</span></div>
+      <div id="hp-bar"><div id="hp-fill"></div></div>
+      <div id="hud-mode"></div>
+    </div>
+    <div class="box" id="wavebox"><div id="hud-wave"></div><div id="hud-left"></div></div>
+    <div class="box" id="scorebox"><div id="hud-score">0</div><div id="hud-kills"></div></div>
+    <div id="hud-combo">x0<small id="hud-mult"></small></div>
+    <div id="hint"></div>
+    <div class="box" id="helpbox">打字射击 · <kbd>1</kbd>–<kbd>4</kbd> 用道具<br><kbd>Esc</kbd> 暂停</div>
+    <div class="box" id="items">
+      <div class="slot" id="slot-bomb"><kbd>1</kbd><i style="background:#ff8a3d"></i><span class="q">0</span><span class="lab">炸弹</span></div>
+      <div class="slot" id="slot-freeze"><kbd>2</kbd><i style="background:#7fd8ff"></i><span class="q">0</span><span class="lab">冰冻</span></div>
+      <div class="slot" id="slot-medkit"><kbd>3</kbd><i style="background:#ff6b81"></i><span class="q">0</span><span class="lab">医疗包</span></div>
+      <div class="slot" id="slot-shield"><kbd>4</kbd><i style="background:#8be28b"></i><span class="q">0</span><span class="lab">护盾</span></div>
+    </div>
+    <div class="box" id="statbox"><div><b id="hud-wpm">0</b>WPM</div><div><b id="hud-acc">100%</b>准确率</div></div>
+  </div>
+
+  <div class="screen" id="scr-menu">
+    <div class="card">
+      <h1>打字求生<small>TYPING SURVIVAL</small></h1>
+      <div class="row"><label>模式</label><div class="seg" id="seg-mode"></div><div class="desc" id="mode-desc"></div></div>
+      <div class="row"><label>难度</label><div class="seg" id="seg-diff"></div></div>
+      <div class="row"><label>年段</label><div class="seg" id="seg-grade"></div><div class="desc" id="bank-desc"></div></div>
+      <button class="go" id="btn-start">开始</button>
+      <div id="best"></div>
+      <div class="how">丧尸头上有英文单字，把字打出来就能击倒它。打箱子上的字可以拿道具。</div>
+    </div>
+  </div>
+
+  <div class="screen" id="scr-pause">
+    <div class="card" style="width:380px">
+      <h1 style="font-size:32px">暂停</h1>
+      <button class="go" id="btn-resume">继续</button>
+      <button class="ghost" id="btn-quit">回主画面</button>
+    </div>
+  </div>
+
+  <div class="screen" id="scr-result">
+    <div class="card" style="width:520px">
+      <h1 style="font-size:34px" id="res-title">游戏结束</h1>
+      <div id="res-score">0</div>
+      <div id="res-sub"></div>
+      <div id="res-grid"></div>
+      <button class="go" id="btn-again">再玩一次</button>
+      <button class="ghost" id="btn-menu">回主画面</button>
+    </div>
+  </div>
+</div>
+<script src="words.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
