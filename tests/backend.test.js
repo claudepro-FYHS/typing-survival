@@ -98,7 +98,18 @@ test("leaderboards: class / grade / school / public", () => {
   assert.ok(!JSON.stringify(board(A.token, "school")).includes("@"), "no email addresses leave the server");
   assert.strictEqual(board("", "school").error, "school_only", "real names only for school accounts");
   assert.strictEqual(board(P.token, "grade").error, "school_only");
-  assert.strictEqual(board(T.token, "class").error, "no_class");
+  // teachers have no class: they pick any class or grade to look at
+  assert.strictEqual(board(T.token, "class").error, "bad_group");
+  assert.strictEqual(board(T.token, "class", { group: "J2; DROP" }).error, "bad_group");
+  r = board(T.token, "class", { group: "j207" });
+  assert.deepStrictEqual([r.group, r.rows.map((x) => x.name), r.me], ["J207", ["李美"], null]);
+  r = board(T.token, "grade", { group: "J2" });
+  assert.deepStrictEqual(r.rows.map((x) => x.name), ["李美", "王小明"]);
+  assert.strictEqual(board(T.token, "grade", { group: "S1" }).rows.length, 1);
+  assert.strictEqual(board(A.token, "class", { group: "J207" }).group, "J203", "a student cannot pick another class");
+  const cl = post({ action: "classes", token: T.token });
+  assert.deepStrictEqual(cl.classes.map((c) => c.cls + ":" + c.n), ["J203:1", "J207:1", "S1AC1:1"]);
+  assert.strictEqual(post({ action: "classes", token: A.token }).error, "teacher_only");
   assert.strictEqual(board(P.token, "public").me.rank, 1);
   assert.strictEqual(board(A.token, "school", { diff: "hard" }).rows.length, 1);
   // a new best shows up at once (cache is cleared for the player's own boards)

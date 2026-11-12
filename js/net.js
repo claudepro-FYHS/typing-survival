@@ -50,7 +50,8 @@
   N.logout = function () { N.token = ""; N.email = ""; N.player = null; remember(); };
   N.saveProfile = async (data) => take(await N.post("saveProfile", Object.assign({ token: N.token }, data)));
   N.submitScore = (data) => N.post("submitScore", Object.assign({ token: N.token }, data), 6);
-  N.leaderboard = (scope, mode, diff) => N.post("leaderboard", { token: N.token, scope, mode, diff }, 2);
+  N.leaderboard = (scope, mode, diff, group) => N.post("leaderboard", { token: N.token, scope, mode, diff, group }, 2);
+  N.classes = () => N.post("classes", { token: N.token }, 2);
   N.ready = () => !!(N.token && N.player && !N.player.needsProfile);
 
   window.TSNet = N;

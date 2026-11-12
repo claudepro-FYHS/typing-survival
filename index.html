@@ -97,7 +97,7 @@
   .card.wide{width:820px;padding:20px 26px}
   .lb-top{display:grid;grid-template-columns:1.5fr 1fr 1.1fr;gap:10px;margin-top:12px}
   .lb-top .seg button{font-size:13.5px;padding:8px 0}
-  #lb-body{height:372px;overflow-y:auto;margin-top:12px;background:#16222a;border-radius:10px;padding:4px 6px}
+  #lb-body{height:330px;overflow-y:auto;margin-top:12px;background:#16222a;border-radius:10px;padding:4px 6px}
   .lb-msg{padding:60px 0;text-align:center;color:var(--muted)}
   .lb-row{display:grid;grid-template-columns:44px 1fr 110px 84px 90px 56px;align-items:center;gap:8px;padding:7px 8px;border-radius:7px;font-size:14px}
   .lb-row:nth-child(even){background:rgba(255,255,255,.035)}
@@ -107,6 +107,8 @@
   .lb-row span{text-align:right;color:var(--muted);font-size:13px}
   .lb-row .sc{font-family:var(--mono);font-weight:700;font-size:16px;color:var(--text)}
   .lb-row.me{background:rgba(255,210,63,.16);outline:1.5px solid var(--me)}
+  #lb-pick{display:grid;grid-template-columns:60px 240px;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:var(--muted)}
+  #lb-pick select{padding:7px 10px;font-size:15px}
   #lb-foot{font-size:12.5px;color:var(--muted);margin-top:10px;text-align:center;min-height:18px}
   #teambox{position:absolute;left:16px;top:108px;width:210px;display:none}
   #hud.multi #teambox{display:block}
@@ -221,6 +223,7 @@
     <div class="card wide">
       <h1 style="font-size:28px">排行榜</h1>
       <div class="lb-top"><div class="seg" id="lb-scope"></div><div class="seg" id="lb-mode"></div><div class="seg" id="lb-diff"></div></div>
+      <div id="lb-pick" style="display:none"></div>
       <div id="lb-body"></div>
       <div id="lb-foot"></div>
       <button class="ghost" id="btn-board-back">回主畫面</button>
@@ -246,14 +249,14 @@
     </div>
   </div>
 </div>
-<script src="config.js?v=0.3.1"></script>
-<script src="words.js?v=0.3.1"></script>
-<script src="lib/peerjs.min.js?v=0.3.1"></script>
-<script src="js/engine.js?v=0.3.1"></script>
-<script src="js/render.js?v=0.3.1"></script>
-<script src="js/net.js?v=0.3.1"></script>
-<script src="js/ui.js?v=0.3.1"></script>
-<script src="js/room.js?v=0.3.1"></script>
-<script src="js/account.js?v=0.3.1"></script>
+<script src="config.js?v=0.3.2"></script>
+<script src="words.js?v=0.3.2"></script>
+<script src="lib/peerjs.min.js?v=0.3.2"></script>
+<script src="js/engine.js?v=0.3.2"></script>
+<script src="js/render.js?v=0.3.2"></script>
+<script src="js/net.js?v=0.3.2"></script>
+<script src="js/ui.js?v=0.3.2"></script>
+<script src="js/room.js?v=0.3.2"></script>
+<script src="js/account.js?v=0.3.2"></script>
 </body>
 </html>

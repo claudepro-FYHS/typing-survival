@@ -5,9 +5,11 @@
   "use strict";
   const UI = window.TSUI, N = window.TSNet, $ = UI.$;
   const SCOPES = { class: "我的班級", grade: "我的年段", school: "全校", public: "公開榜" };
+  const T_SCOPES = { class: "班級", grade: "年段", school: "全校", public: "公開榜" };   // teachers pick which class / grade
   const GRADE_NAME = { J1: "初一", J2: "初二", J3: "初三", S1: "高一", S2: "高二", S3: "高三" };
   const ERR = {
     network: "連不上伺服器，請稍後再試。", session_expired: "登入已過期，請重新登入。", server: "伺服器出錯，請稍後再試。",
+    bad_group: "請選擇年段或班級。", teacher_only: "這個功能只有老師可以用。",
     not_school: "目前只接受學校帳號登入。", bad_token: "Google 登入失敗，請再試一次。", no_client_id: "後台還沒設定 Google 登入。",
     bad_name: "請填寫姓名。", bad_class: "班級不正確，請再檢查。", bad_seat: "座號不正確。", bad_nick: "這個暱稱不能用，請換一個（2–12 個字，不能有空格）。",
     locked: "班級已經填過了，要改請找老師。", no_class: "要先填好班級才能看這個排行榜。", school_only: "這個排行榜只有學校帳號可以看。",
@@ -105,7 +107,7 @@
   /* ---------- leaderboards ---------- */
   function scopesFor() {
     const p = N.token ? N.player : null;
-    if (p && p.school && p.cls && !p.teacher) return ["class", "grade", "school", "public"];
+    if (p && p.school && (p.teacher || p.cls)) return ["class", "grade", "school", "public"];
     if (p && p.school) return ["school", "public"];
     return ["public"];
   }
@@ -114,16 +116,35 @@
     el.onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; B[key] = b.dataset.v; renderBoard(); };
   }
   function openBoard() {
-    B.mode = UI.S.prefs.mode; B.diff = UI.S.prefs.diff;
+    B.mode = UI.S.prefs.mode; B.diff = UI.S.prefs.diff; B.classes = null;
     const sc = scopesFor(); if (sc.indexOf(B.scope) === -1) B.scope = sc[0];
     UI.show("board"); renderBoard();
   }
   async function renderBoard() {
-    const sc = scopesFor(), map = {}; sc.forEach((k) => (map[k] = SCOPES[k]));
+    const teacher = !!(N.token && N.player && N.player.teacher), names = teacher ? T_SCOPES : SCOPES;
+    const sc = scopesFor(), map = {}; sc.forEach((k) => (map[k] = names[k]));
     segB($("#lb-scope"), map, "scope"); segB($("#lb-mode"), UI.MODES, "mode"); segB($("#lb-diff"), UI.DIFFS, "diff");
     const body = $("#lb-body"), foot = $("#lb-foot"), id = ++B.req;
     body.innerHTML = `<div class="lb-msg">載入中…</div>`; foot.textContent = "";
-    const r = await N.leaderboard(B.scope, B.mode, B.diff);
+    let group = "";
+    const pick = $("#lb-pick");
+    pick.style.display = "none";
+    if (teacher && (B.scope === "class" || B.scope === "grade")) {
+      if (B.scope === "class" && !B.classes) {
+        const c = await N.classes();
+        if (id !== B.req) return;
+        B.classes = c && c.ok ? c.classes : [];
+      }
+      const opts = B.scope === "grade" ? Object.keys(GRADE_NAME).map((g) => [g, GRADE_NAME[g]]) : B.classes.map((c) => [c.cls, `${c.cls}（${c.n} 人）`]);
+      if (!opts.length) { body.innerHTML = `<div class="lb-msg">今年還沒有學生填寫班級。</div>`; return; }
+      const key = B.scope === "grade" ? "tGrade" : "tClass";
+      if (!opts.some((o) => o[0] === B[key])) B[key] = opts[0][0];
+      group = B[key];
+      pick.style.display = "";
+      pick.innerHTML = `<label>${B.scope === "grade" ? "年段" : "班級"}</label><select id="lb-group">${opts.map((o) => `<option value="${esc(o[0])}"${o[0] === group ? " selected" : ""}>${esc(o[1])}</option>`).join("")}</select>`;
+      $("#lb-group").onchange = (ev) => { B[key] = ev.target.value; renderBoard(); };
+    }
+    const r = await N.leaderboard(B.scope, B.mode, B.diff, group);
     if (id !== B.req) return;
     if (!r || !r.ok) { body.innerHTML = `<div class="lb-msg">${esc(msg(r))}</div>`; return; }
     if (!r.rows.length) { body.innerHTML = `<div class="lb-msg">還沒有人上榜，來當第一名吧。</div>`; }
@@ -133,7 +154,7 @@
         `<span class="sc">${Number(x.score).toLocaleString()}</span><span>第 ${x.wave} 波</span><span>${Math.round(x.wpm)} WPM</span><span>${Math.round(x.acc)}%</span></div>`).join("");
     }
     const title = B.scope === "class" || B.scope === "grade" ? (B.scope === "grade" ? (GRADE_NAME[r.group] || r.group) : r.group) : SCOPES[B.scope];
-    foot.textContent = `${r.year} 學年 · ${title} · 共 ${r.total} 人` + (r.me ? ` · 你是第 ${r.me.rank} 名` : N.ready() ? " · 你還沒有成績" : "");
+    foot.textContent = `${r.year} 學年 · ${title} · 共 ${r.total} 人` + (r.me ? ` · 你是第 ${r.me.rank} 名` : N.ready() && !group ? " · 你還沒有成績" : "");
   }
 
   /* ---------- score upload after a game ---------- */

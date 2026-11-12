@@ -118,6 +118,7 @@ function doPost(e) {
       case 'saveProfile': return json_(withLock_(function () { return saveProfile_(body); }));
       case 'submitScore': return json_(withLock_(function () { return submitScore_(body); }));
       case 'leaderboard': return json_(leaderboard_(body));
+      case 'classes': return json_(classes_(body));
     }
     return json_({ ok: false, error: 'unknown_action' });
   } catch (err) { return json_({ ok: false, error: 'server', message: String(err) }); }
@@ -319,8 +320,13 @@ function leaderboard_(body) {
   if (scope !== 'public' && !school) return { ok: false, error: 'school_only' };
   var group = scope;
   if (scope === 'class' || scope === 'grade') {
-    if (!me || !school || teacher || me.classYear !== s.year || !me.cls) return { ok: false, error: 'no_class' };
-    group = groupFor_(scope, me, school, teacher);
+    if (teacher) {                       // teachers have no class of their own: they choose which one to look at
+      group = String(body.group || '').toUpperCase().replace(/\s/g, '');
+      if (!(scope === 'grade' ? /^[JS][1-3]$/ : /^[JS][1-3][A-Z]{0,3}\d{1,2}$/).test(group)) return { ok: false, error: 'bad_group' };
+    } else {
+      if (!me || !school || me.classYear !== s.year || !me.cls) return { ok: false, error: 'no_class' };
+      group = groupFor_(scope, me, school, teacher);
+    }
   }
   var cache = CacheService.getScriptCache(), key = boardKey_(scope, group, body.mode, body.diff, s.year), list = null;
   var hit = cache.get(key);
@@ -338,6 +344,20 @@ function leaderboard_(body) {
     if (isMe) mine = item;
   }
   return { ok: true, scope: scope, group: group, year: s.year, total: list.length, rows: rows, me: mine };
+}
+
+// Teachers only: the classes that have students this year, for the leaderboard's class picker.
+function classes_(body) {
+  var t = checkToken_(body.token);
+  if (!t) return { ok: false, error: 'session_expired' };
+  if (!teacherMap_()[t.e]) return { ok: false, error: 'teacher_only' };
+  var s = getSettings_(), seen = {}, teachers = teacherMap_();
+  SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PLAYERS).getDataRange().getValues().slice(1).forEach(function (r) {
+    var p = rowToPlayer_(r);
+    if (p.cls && p.classYear === s.year && isSchool_(p.email, s) && !teachers[p.email]) seen[p.cls] = (seen[p.cls] || 0) + 1;
+  });
+  var list = Object.keys(seen).sort().map(function (c) { return { cls: c, n: seen[c] }; });
+  return { ok: true, year: s.year, classes: list };
 }
 
 // -> [[email, shown name, class, score, wave, wpm, accuracy], ...] best first
