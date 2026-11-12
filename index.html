@@ -49,6 +49,8 @@
   #statbox b{display:block;font-family:var(--mono);font-size:22px;color:var(--text)}
   #helpbox{left:16px;bottom:14px;padding:8px 12px;font-size:11.5px;color:var(--muted);line-height:1.6}
   #helpbox kbd{font-family:var(--mono);color:#fff;background:#2a3840;border:1px solid #5a6b74;border-radius:3px;padding:0 4px}
+  #helpbox{animation:helpfade 1s 25s forwards}
+  @keyframes helpfade{to{opacity:0}}
   #hint{position:absolute;left:50%;top:92px;transform:translateX(-50%);background:var(--danger);color:#fff;font-weight:700;font-size:14px;padding:6px 14px;border-radius:16px;opacity:0;transition:opacity .2s}
   #hint.on{opacity:1}
 
@@ -106,6 +108,40 @@
   .lb-row .sc{font-family:var(--mono);font-weight:700;font-size:16px;color:var(--text)}
   .lb-row.me{background:rgba(255,210,63,.16);outline:1.5px solid var(--me)}
   #lb-foot{font-size:12.5px;color:var(--muted);margin-top:10px;text-align:center;min-height:18px}
+  #teambox{position:absolute;left:16px;top:108px;width:210px;display:none}
+  #hud.multi #teambox{display:block}
+  .mate{display:grid;grid-template-columns:12px 1fr auto;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 9px;margin-bottom:5px;font-size:12.5px}
+  .mate i{width:10px;height:10px;border-radius:50%;border:2px solid var(--ink)}
+  .mate b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mate span{font-family:var(--mono);color:var(--muted);font-size:12px}
+  .mate .mb{grid-column:1/4;height:4px;background:#2a3a35;border-radius:2px;overflow:hidden}
+  .mate .mb u{display:block;height:100%;background:var(--hp)}
+  .mate.down{border-color:#ff8f8f}.mate.down span{color:#ff8f8f;font-family:var(--ui)}
+  .mate.left{opacity:.45}
+  #waiting{position:absolute;inset:0;display:grid;place-items:center;font-size:22px;font-weight:700;background:rgba(14,26,22,.6)}
+  #pause-note{font-size:12.5px;color:var(--muted);text-align:center;margin-top:10px;min-height:16px}
+  #res-team{margin-top:16px}
+  .tr{display:grid;grid-template-columns:1fr 92px 56px 64px 48px;gap:8px;align-items:center;padding:7px 10px;border-radius:7px;font-size:14px}
+  .tr span{text-align:right;color:var(--muted);font-family:var(--mono)}
+  .tr.th span{font-family:var(--ui);font-size:12px}
+  .tr b i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;border:2px solid var(--ink)}
+  .tr .sc{color:var(--text);font-weight:700;font-size:16px}
+  .tr:nth-child(even){background:rgba(255,255,255,.04)}
+  .tr.me{outline:1.5px solid var(--me);background:rgba(255,210,63,.12)}
+  .mp-or{text-align:center;color:var(--muted);font-size:12.5px;margin:14px 0 4px}
+  .mp-joinrow{display:grid;grid-template-columns:1fr 150px;gap:8px}
+  .mp-joinrow .go{margin-top:0;font-size:16px;letter-spacing:2px;padding:10px}
+  #mp-code-in{text-transform:uppercase;font-family:var(--mono);font-size:22px;letter-spacing:6px;text-align:center}
+  #mp-codebox{text-align:center;margin-top:10px;font-size:13px;color:var(--muted)}
+  #mp-code{display:block;font-family:var(--mono);font-size:54px;font-weight:700;letter-spacing:10px;color:var(--me);line-height:1.1;user-select:text}
+  #mp-players{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:14px}
+  .mp-p{display:grid;grid-template-columns:14px 1fr auto;gap:8px;align-items:center;background:#1c2931;border-radius:8px;padding:9px 12px;font-size:15px}
+  .mp-p i{width:12px;height:12px;border-radius:50%;border:2px solid var(--ink)}
+  .mp-p span{font-size:12px;color:var(--muted)}
+  .mp-p.empty{opacity:.4}.mp-p.empty b{font-weight:400;font-size:13px}
+  #mp-msg{min-height:20px;text-align:center;font-size:13px;color:var(--muted);margin-top:12px}
+  #mp-msg.bad{color:#ffb38a}
+  .go:disabled{opacity:.4;cursor:default;filter:none}
 </style>
 </head>
 <body>
@@ -118,6 +154,8 @@
       <div id="hp-bar"><div id="hp-fill"></div></div>
       <div id="hud-mode"></div>
     </div>
+    <div id="teambox"></div>
+    <div id="waiting">等房主的畫面…</div>
     <div class="box" id="wavebox"><div id="hud-wave"></div><div id="hud-left"></div></div>
     <div class="box" id="scorebox"><div id="hud-score">0</div><div id="hud-kills"></div></div>
     <div id="hud-combo">x0<small id="hud-mult"></small></div>
@@ -140,6 +178,7 @@
       <div class="row"><label>難度</label><div class="seg" id="seg-diff"></div></div>
       <div class="row" id="row-grade"><label>年段</label><div class="seg" id="seg-grade"></div><div class="desc" id="bank-desc"></div></div>
       <button class="go" id="btn-start">開始</button>
+      <button class="ghost" id="btn-multi">多人連線（2–6 人）</button>
       <button class="ghost" id="btn-board" style="display:none">排行榜</button>
       <div id="best"></div>
       <div class="how">喪屍頭上有英文單字，把字打出來就能擊倒它。打箱子上的字可以拿道具。</div>
@@ -148,18 +187,20 @@
 
   <div class="screen" id="scr-pause">
     <div class="card" style="width:380px">
-      <h1 style="font-size:32px">暫停</h1>
+      <h1 style="font-size:32px" id="pause-title">暫停</h1>
+      <div id="pause-note"></div>
       <button class="go" id="btn-resume">繼續</button>
       <button class="ghost" id="btn-quit">回主畫面</button>
     </div>
   </div>
 
   <div class="screen" id="scr-result">
-    <div class="card" style="width:520px">
+    <div class="card" style="width:580px">
       <h1 style="font-size:34px" id="res-title">遊戲結束</h1>
       <div id="res-score">0</div>
       <div id="res-sub"></div>
       <div id="res-grid"></div>
+      <div id="res-team" style="display:none"></div>
       <div id="res-upload"></div>
       <button class="go" id="btn-again">再玩一次</button>
       <button class="ghost" id="btn-menu">回主畫面</button>
@@ -185,13 +226,34 @@
       <button class="ghost" id="btn-board-back">回主畫面</button>
     </div>
   </div>
+  <div class="screen" id="scr-room">
+    <div class="card" style="width:600px">
+      <h1 style="font-size:30px">多人連線</h1>
+      <div id="mp-join">
+        <div class="row"><label>名字</label><input id="mp-name" maxlength="12" placeholder="其他人看到的名字" autocomplete="off"></div>
+        <button class="go" id="btn-mp-create">建立房間</button>
+        <div class="mp-or">或者輸入同學給你的房號</div>
+        <div class="mp-joinrow"><input id="mp-code-in" maxlength="5" placeholder="房號" autocomplete="off" spellcheck="false"><button class="go" id="btn-mp-join">加入房間</button></div>
+        <button class="ghost" id="btn-mp-back">回主畫面</button>
+      </div>
+      <div id="mp-room" style="display:none">
+        <div id="mp-codebox">房號<b id="mp-code"></b><span id="mp-settings"></span></div>
+        <div id="mp-players"></div>
+        <button class="go" id="btn-mp-start">開始</button>
+        <button class="ghost" id="btn-mp-leave">離開房間</button>
+      </div>
+      <div id="mp-msg"></div>
+    </div>
+  </div>
 </div>
-<script src="config.js?v=0.2.0"></script>
-<script src="words.js?v=0.2.0"></script>
-<script src="js/engine.js?v=0.2.0"></script>
-<script src="js/render.js?v=0.2.0"></script>
-<script src="js/net.js?v=0.2.0"></script>
-<script src="js/ui.js?v=0.2.0"></script>
-<script src="js/account.js?v=0.2.0"></script>
+<script src="config.js?v=0.3.0"></script>
+<script src="words.js?v=0.3.0"></script>
+<script src="lib/peerjs.min.js?v=0.3.0"></script>
+<script src="js/engine.js?v=0.3.0"></script>
+<script src="js/render.js?v=0.3.0"></script>
+<script src="js/net.js?v=0.3.0"></script>
+<script src="js/ui.js?v=0.3.0"></script>
+<script src="js/room.js?v=0.3.0"></script>
+<script src="js/account.js?v=0.3.0"></script>
 </body>
 </html>

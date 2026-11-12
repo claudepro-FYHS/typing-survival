@@ -7,7 +7,8 @@
   const CFG = window.TS_CONFIG || {};
   const N = { url: CFG.APPS_SCRIPT_URL || "", token: "", email: "", player: null, config: null };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  N.enabled = () => !!(N.url || window.__TSV_FAKE_API);
+  // offline = the backend did not answer: the game still works, without sign-in and leaderboards
+  N.enabled = () => !!(N.url || window.__TSV_FAKE_API) && !N.offline;
 
   // "busy" = the whole class is saving at once: wait a random moment and ask again.
   N.post = async function (action, body, tries) {
@@ -33,7 +34,7 @@
   function remember() { try { if (N.token) localStorage.setItem("tsv_session", N.token); else localStorage.removeItem("tsv_session"); } catch (e) {} }
   function take(r) { if (r && r.ok && r.player) { N.player = r.player; N.email = r.email || N.email; } return r; }
 
-  N.loadConfig = async function () { const r = await N.post("config"); if (r && r.ok) N.config = r; return r; };
+  N.loadConfig = async function () { const r = await N.post("config", null, 2); if (r && r.ok) N.config = r; else N.offline = true; return r; };
   N.restore = async function () {
     let tok = ""; try { tok = localStorage.getItem("tsv_session") || ""; } catch (e) {}
     if (!tok) return null;

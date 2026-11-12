@@ -7,84 +7,84 @@ const WORDS = window.TS_WORDS.general.split(" ");
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log("ok  " + name); };
 const mk = (mode, extra) => E.createGame(Object.assign({ mode, diff: "normal", seed: 7, words: WORDS, topic: [] }, extra));
-const type = (G, s) => [...s].map((c) => E.key(G, c));
+const team = (k) => Array.from({ length: k }, (_, i) => ({ pid: "p" + i, name: "P" + i }));
+const type = (G, s, pid) => [...s].map((c) => E.key(G, c, pid));
+const pg = (e, pid) => E.prog(e, pid || "p0");
+const hold = (G) => { G.toSpawn = 0; G.resting = true; G.rest = 9999; };   // no waves during a test
 
 test("classic: first letter locks the target, other letters are misses", () => {
-  const G = mk("classic");
+  const G = mk("classic"), P = G.players[0];
   const a = E.addEnemy(G, "normal", 100, 100, ["apple"]);
   const b = E.addEnemy(G, "normal", 900, 500, ["boy"]);
   assert.deepStrictEqual(type(G, "ap"), [true, true]);
-  assert.strictEqual(G.target, a.id);
+  assert.strictEqual(P.target, a.id);
   assert.strictEqual(E.key(G, "b"), false);
-  assert.strictEqual(b.prog, 0);
-  assert.strictEqual(G.errors, 1);
-  assert.strictEqual(G.combo, 0);
+  assert.strictEqual(pg(b), 0);
+  assert.strictEqual(P.errors, 1);
+  assert.strictEqual(P.combo, 0);
   type(G, "ple");
   assert.strictEqual(E.ent(G, a.id), null);
-  assert.strictEqual(G.kills, 1);
-  assert.strictEqual(G.target, 0);
+  assert.strictEqual(P.kills, 1);
+  assert.strictEqual(P.target, 0);
   type(G, "boy");
   assert.strictEqual(G.kills, 2);
 });
 
 test("free: switch mid-word, progress is kept, resume with the next letter", () => {
-  const G = mk("free");
+  const G = mk("free"), P = G.players[0];
   const a = E.addEnemy(G, "normal", 100, 100, ["apple"]);
   const b = E.addEnemy(G, "normal", 900, 500, ["boy"]);
   type(G, "ap");
-  assert.strictEqual(G.combo, 2);
+  assert.strictEqual(P.combo, 2);
   assert.strictEqual(E.key(G, "b"), true);
-  assert.strictEqual(G.target, b.id);
-  assert.strictEqual(a.prog, 2);
-  assert.strictEqual(G.errors, 0);
-  assert.strictEqual(G.combo, 1, "switching resets the combo, then counts the new hit");
-  assert.strictEqual(G.switches, 1);
+  assert.strictEqual(P.target, b.id);
+  assert.strictEqual(pg(a), 2);
+  assert.strictEqual(P.errors, 0);
+  assert.strictEqual(P.combo, 1, "switching resets the combo, then counts the new hit");
+  assert.strictEqual(P.switches, 1);
   assert.strictEqual(E.key(G, "p"), true, "back to apple with its next letter");
-  assert.strictEqual(G.target, a.id);
-  assert.strictEqual(a.prog, 3);
+  assert.strictEqual(P.target, a.id);
+  assert.strictEqual(pg(a), 3);
   assert.strictEqual(E.key(G, "z"), false, "no enemy wants z");
-  assert.strictEqual(G.errors, 1);
+  assert.strictEqual(P.errors, 1);
   type(G, "le");
-  assert.strictEqual(G.kills, 1);
-  assert.strictEqual(b.prog, 1);
+  assert.strictEqual(P.kills, 1);
+  assert.strictEqual(pg(b), 1);
 });
 
 test("free: current target wins when two enemies want the same letter, else nearest", () => {
   const G = mk("free");
-  const far = E.addEnemy(G, "normal", 50, 50, ["pear"]);
+  E.addEnemy(G, "normal", 50, 50, ["pear"]);
   const near = E.addEnemy(G, "normal", 600, 360, ["pig"]);
   E.key(G, "p");
-  assert.strictEqual(G.target, near.id);
+  assert.strictEqual(G.players[0].target, near.id);
   const G2 = mk("free");
   const a = E.addEnemy(G2, "normal", 50, 50, ["apple"]);
   const p = E.addEnemy(G2, "normal", 600, 360, ["pig"]);
   type(G2, "ap");
-  assert.strictEqual(a.prog, 2);
   E.key(G2, "p");
-  assert.strictEqual(a.prog, 3, "locked apple takes the p");
-  assert.strictEqual(p.prog, 0);
-  assert.ok(far);
+  assert.strictEqual(pg(a), 3, "locked apple takes the p");
+  assert.strictEqual(pg(p), 0);
 });
 
 test("tank needs two words; score and combo multiplier", () => {
-  const G = mk("classic");
+  const G = mk("classic"), P = G.players[0];
   const t = E.addEnemy(G, "tank", 100, 100, ["elephant", "cat"]);
   assert.strictEqual(t.hp, 11);
   type(G, "elephant");
   assert.strictEqual(t.word, "cat");
-  assert.strictEqual(t.prog, 0);
+  assert.strictEqual(pg(t), 0);
   assert.strictEqual(G.kills, 0);
   type(G, "cat");
   assert.strictEqual(G.kills, 1);
-  // 9 hits x10 + hits 10 and 11 x11 + kill bonus 11*5
-  assert.strictEqual(G.score, 90 + 22 + 55);
+  assert.strictEqual(P.score, 90 + 22 + 55);   // 9 hits x10, 2 hits x11, 11 damage x5
 });
 
 test("crate pickup and items", () => {
-  const G = mk("classic");
+  const G = mk("classic"), P = G.players[0];
   E.addCrate(G, "bomb", 400, 400);
   type(G, "bomb");
-  assert.strictEqual(G.items.bomb, 1);
+  assert.strictEqual(P.items.bomb, 1);
   assert.strictEqual(G.ents.length, 0);
   const nearE = E.addEnemy(G, "normal", 700, 360, ["dog"]);
   const farE = E.addEnemy(G, "normal", 10, 10, ["sun"]);
@@ -95,54 +95,156 @@ test("crate pickup and items", () => {
   assert.strictEqual(tank.word, "cat");
   assert.strictEqual(tank.hp, 3);
   assert.strictEqual(E.useItem(G, "bomb"), false);
-  G.items.medkit = 1; G.hp = 50; E.useItem(G, "medkit");
-  assert.strictEqual(G.hp, 85);
+  P.items.medkit = 1; P.hp = 50; E.useItem(G, "medkit");
+  assert.strictEqual(P.hp, 85);
 });
 
-test("biting hurts, shield blocks, freeze stops, game ends at 0 hp", () => {
-  const G = mk("classic");
-  G.toSpawn = 0; G.resting = true; G.rest = 9999;
+test("solo: biting hurts, shield blocks, freeze stops, game ends at 0 hp", () => {
+  const G = mk("classic"), P = G.players[0];
+  hold(G);
   E.addEnemy(G, "normal", 640, 400, ["dog"]);
   for (let i = 0; i < 60; i++) E.step(G, 0.05);
-  assert.ok(G.hp < 100, "bitten");
-  const hp = G.hp;
-  G.items.shield = 1; E.useItem(G, "shield");
+  assert.ok(P.hp < 100, "bitten");
+  const hp = P.hp;
+  P.items.shield = 1; E.useItem(G, "shield");
   for (let i = 0; i < 60; i++) E.step(G, 0.05);
-  assert.strictEqual(G.hp, hp, "shield blocks");
-  G.shieldT = 0; G.items.freeze = 1; E.useItem(G, "freeze");
+  assert.strictEqual(P.hp, hp, "shield blocks");
+  P.shieldT = 0; P.items.freeze = 1; E.useItem(G, "freeze");
   for (let i = 0; i < 60; i++) E.step(G, 0.05);
-  assert.strictEqual(G.hp, hp, "frozen enemies do not bite");
+  assert.strictEqual(P.hp, hp, "frozen enemies do not bite");
   for (let i = 0; i < 20000 && !G.over; i++) E.step(G, 0.05);
   assert.ok(G.over);
-  assert.strictEqual(G.hp, 0);
+  assert.strictEqual(P.hp, 0);
   assert.strictEqual(E.key(G, "d"), false);
 });
 
-test("bot plays 3 difficulties x 2 modes: waves advance, words stay valid", () => {
-  for (const diff of ["easy", "normal", "hard"]) for (const mode of ["classic", "free"]) {
-    const G = mk(mode, { diff, seed: 99, topic: window.TS_WORDS.topics.S2.words.split(" ") });
+test("co-op: shared health, own progress, score by letters typed", () => {
+  const G = mk("free", { players: team(2) }), [A, B] = G.players;
+  assert.ok(A.x !== B.x || A.y !== B.y, "players stand apart");
+  const e = E.addEnemy(G, "normal", 300, 300, ["apple"]);
+  type(G, "app", "p0");
+  type(G, "a", "p1");
+  assert.strictEqual(e.hp, 1);
+  assert.strictEqual(pg(e, "p0"), 3);
+  assert.strictEqual(pg(e, "p1"), 1);
+  assert.strictEqual(E.key(G, "l", "p1"), false, "p1's own next letter is p, not l");
+  assert.strictEqual(E.key(G, "p", "p1"), true);
+  assert.strictEqual(E.ent(G, e.id), null, "5 damage in total kills a 5-letter enemy");
+  assert.strictEqual(A.target, 0, "p0's target is cleared when a teammate finishes it");
+  assert.strictEqual(A.score, 30 + 15);
+  assert.strictEqual(B.score, 20 + 10);
+  assert.strictEqual(B.kills, 1);
+  // tank: one player finishing a word moves everyone to the next word
+  const t = E.addEnemy(G, "tank", 300, 300, ["elephant", "cat"]);
+  type(G, "el", "p1"); type(G, "elephant", "p0");
+  assert.strictEqual(t.word, "cat");
+  assert.strictEqual(t.hp, 1);
+  assert.strictEqual(pg(t, "p1"), 0, "progress starts again on the new word");
+  E.key(G, "c", "p1");
+  assert.strictEqual(E.ent(G, t.id), null);
+});
+
+test("co-op: a tank dies exactly when its health runs out", () => {
+  const G = mk("free", { players: team(2) });
+  const t = E.addEnemy(G, "tank", 300, 300, ["elephant", "cat"]);
+  type(G, "elep", "p1"); type(G, "elephant", "p0");
+  assert.strictEqual(E.ent(G, t.id), null, "8 + 4 = 12 damage on 11 health");
+});
+
+test("co-op: more players, more enemies", () => {
+  const count = (k) => { const G = mk("classic", { players: team(k) }); for (let i = 0; i < 200; i++) E.step(G, 0.05); return G.toSpawn + E.enemies(G).length; };
+  assert.strictEqual(count(1), 8);
+  assert.ok(count(4) > count(2) && count(2) > count(1));
+});
+
+test("co-op: down, every standing teammate must type the word, then revive; all down ends", () => {
+  const G = mk("free", { players: team(3) }), [A, B, C] = G.players;
+  hold(G);
+  const z = E.addEnemy(G, "normal", A.x, A.y - 40, ["dog"]);
+  A.hp = 4;
+  for (let i = 0; i < 40 && !A.down; i++) E.step(G, 0.05);
+  assert.ok(A.down && !G.over);
+  const d = G.ents.find((e) => e.kind === "down");
+  assert.strictEqual(d.pid, "p0");
+  assert.strictEqual(E.key(G, d.word[0], "p0"), false, "a downed player cannot type");
+  type(G, "dog", "p1");                       // clear the zombie so it stops biting
+  assert.strictEqual(E.ent(G, z.id), null);
+  type(G, d.word, "p1");
+  assert.ok(A.down, "one of two teammates is not enough");
+  assert.strictEqual(B.target, 0);
+  type(G, d.word, "p2");
+  assert.ok(!A.down, "revived");
+  assert.strictEqual(A.hp, 50);
+  assert.strictEqual(B.revives, 1);
+  assert.ok(!G.ents.some((e) => e.kind === "down"));
+  // a teammate who leaves no longer has to type
+  A.hp = 1; E.addEnemy(G, "normal", A.x, A.y - 40, ["fox"]);
+  for (let i = 0; i < 200 && !A.down; i++) E.step(G, 0.05);   // 2 s of protection after a revive
+  assert.ok(A.down);
+  const d2 = G.ents.find((e) => e.kind === "down");
+  type(G, d2.word, "p1");
+  assert.ok(A.down);
+  E.leave(G, "p2");
+  assert.ok(!A.down, "revived once the only remaining teammate has typed it");
+  // everyone down = over
+  E.leave(G, "p0");
+  assert.ok(!G.over);
+  B.hp = 1; G.ents.length = 0; E.addEnemy(G, "normal", B.x, B.y - 40, ["cat"]);
+  for (let i = 0; i < 80 && !G.over; i++) E.step(G, 0.05);
+  assert.ok(G.over, "last standing player down ends the game");
+  assert.ok(C.left);
+});
+
+test("snapshot is plain JSON a guest can draw from", () => {
+  const G = mk("free", { players: team(2) });
+  for (let i = 0; i < 200; i++) E.step(G, 0.05);
+  E.key(G, G.ents[0].word[0], "p1");
+  const s = JSON.parse(JSON.stringify(E.snapshot(G)));
+  assert.strictEqual(s.players.length, 2);
+  assert.strictEqual(s.ents.length, G.ents.length);
+  assert.strictEqual(E.prog(s.ents[0], "p1"), 1);
+  assert.strictEqual(E.ent(s, s.players[1].target).id, G.ents[0].id);
+  assert.ok(!("general" in s) && !("rnd" in s));
+  assert.ok(E.stats(s, "p1").hits === 1 && E.enemies(s).length > 0);
+});
+
+test("bots play: solo 3 difficulties x 2 modes, and a 6-player room", () => {
+  const run = (opts, secs) => {
+    const G = mk(opts.mode, opts);
     let clash = 0, checks = 0, acc = 0;
-    for (let i = 0; i < 60 * 240 && !G.over; i++) {
+    for (let i = 0; i < 60 * secs && !G.over; i++) {
       E.step(G, 1 / 60);
       acc += 1 / 60;
-      if (acc >= 0.12) { // ~100 WPM bot
+      if (acc >= 0.12) {
         acc = 0;
-        const t = E.ent(G, G.target) || G.ents.slice().sort((a, b) => Math.hypot(a.x - G.px, a.y - G.py) - Math.hypot(b.x - G.px, b.y - G.py))[0];
-        if (t) E.key(G, t.word[t.prog]);
+        for (const P of G.players) {
+          if (P.down) continue;
+          const t = E.ent(G, P.target) || G.ents.filter((e) => E.prog(e, P.pid) < e.word.length)
+            .sort((a, b) => Math.hypot(a.x - P.x, a.y - P.y) - Math.hypot(b.x - P.x, b.y - P.y))[0];
+          if (t) E.key(G, t.word[E.prog(t, P.pid)], P.pid);
+        }
       }
       if (i % 60 === 0) {
         const firsts = G.ents.map((e) => e.word[0]);
         checks++; if (new Set(firsts).size !== firsts.length) clash++;
-        for (const e of G.ents) assert.ok(/^[a-z]+$/.test(e.word) && e.prog < e.word.length && e.hp > 0, "bad entity " + JSON.stringify(e));
+        for (const e of G.ents) assert.ok(/^[a-z]+$/.test(e.word) && (e.kind === "down" || e.hp > 0), "bad entity " + JSON.stringify(e));
+        JSON.stringify(E.snapshot(G));
       }
       G.ev.length = 0;
     }
-    const s = E.stats(G);
+    return { G, clash, checks };
+  };
+  for (const diff of ["easy", "normal", "hard"]) for (const mode of ["classic", "free"]) {
+    const { G, clash, checks } = run({ mode, diff, seed: 99, topic: window.TS_WORDS.topics.S2.words.split(" ") }, 240);
+    const P = G.players[0];
     assert.ok(G.wave >= 4, `${diff}/${mode} reached wave ${G.wave}`);
-    assert.strictEqual(G.errors, 0);
+    assert.strictEqual(P.errors, 0);
     assert.ok(clash / checks < 0.1, `first-letter clashes ${clash}/${checks}`);
-    console.log(`    ${diff}/${mode}: wave ${G.wave}, kills ${G.kills}, score ${G.score}, wpm ${s.wpm.toFixed(0)}, hp ${G.hp}, clashes ${clash}/${checks}`);
+    console.log(`    ${diff}/${mode}: wave ${G.wave}, kills ${G.kills}, score ${P.score}, wpm ${E.stats(G).wpm.toFixed(0)}, hp ${P.hp}`);
   }
+  const { G } = run({ mode: "free", diff: "normal", seed: 5, players: team(6) }, 180);
+  assert.ok(G.wave >= 3, "6 players reached wave " + G.wave);
+  console.log(`    6 players: wave ${G.wave}, kills ${G.kills}, scores ${G.players.map((p) => p.score).join("/")}, downs ${G.players.map((p) => p.downs).join("/")}`);
 });
 
 console.log(n + " tests passed");

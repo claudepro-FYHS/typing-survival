@@ -143,7 +143,7 @@
     if (!N.token) { el.textContent = "沒有登入，成績不會上排行榜。"; return; }
     if (!N.ready()) { el.textContent = "還沒填寫資料，成績不會上排行榜。"; return; }
     el.textContent = "成績上傳中…";
-    const r = await N.submitScore({ mode: G.mode, diff: G.diff, score: st.score, wave: st.wave, kills: st.kills, hits: G.hits, keys: G.keys,
+    const r = await N.submitScore({ mode: G.mode, diff: G.diff, score: st.score, wave: st.wave, kills: st.kills, hits: st.hits, keys: st.keys,
       time: Math.round(st.time * 10) / 10, maxCombo: st.maxCombo, input: "kb" });
     if (!r || !r.ok) el.textContent = r && r.error === "rejected" ? "成績沒有被接受。" : r && r.error === "session_expired" ? "登入已過期，這次成績沒有上傳。" : "上傳失敗，這次成績只存在這台電腦。";
     else if (!r.ranked) el.textContent = "已記錄（觸控鍵盤的成績不上排行榜）。";
