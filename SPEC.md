@@ -1,6 +1,6 @@
 # 打字求生 Typing Survival — 規格文件
 
-工作名稱，可改。所有決定來自 2026-11-11 與 Edwin 的討論。遊戲介面用簡體中文（配合學校慣例），可改。
+工作名稱，可改。所有決定來自 2026-11-11 與 Edwin 的討論。遊戲介面用繁體中文。
 
 ## 1. 核心玩法
 - 俯視 2D，玩家在畫面中央，喪屍從四周走來，頭上有英文單字，打字射擊。
@@ -97,6 +97,14 @@
 4. 測驗模式、老師後台、弱點練習
 
 ## 進度
-- [x] 第 1 期 a：單人生存可玩版（本機，無登入）
-- [ ] 第 1 期 b：登入、班級、排行榜（需建立 Sheet、Apps Script、GitHub repo）
+- [x] 第 1 期 a：單人生存可玩版（繁體介面）
+- [x] 第 1 期 b（程式）：登入、班級、排行榜的前後端已寫好，後端用模擬環境測試通過
+- [ ] 第 1 期 b（上線）：後台已建在 claude_pro（ids 在 tools/deploy.json），等 claude_pro 在 Apps Script 編輯器執行一次 setup 授權（未授權時網址回 403）；GitHub repo claudepro-FYHS/typing-survival 等 Edwin 建立
+- [ ] 第 1 期 b（實測）：上線後用真實 Google 登入測一次登入、填班級、交成績、排行榜
 - [ ] 第 1 期 c：手機鍵盤與直向排版
+- [ ] 待調：難度數值（等真人試玩）；靠近玩家的字牌會蓋住角色
+
+## 已定案的其他事項
+- 遊戲介面用繁體中文。
+- 後台 Sheet 和 Apps Script 放 claude_pro@foonyew.edu.my；GitHub 放 claudepro-FYHS。
+- Google 登入沿用數碼寶貝打字遊戲的 Client ID（同一個 github.io 網域）。
