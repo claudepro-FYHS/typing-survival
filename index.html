@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hans">
+<html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,7 +8,7 @@
   :root{
     --ink:#1f2a33; --panel:rgba(16,24,29,.86); --line:rgba(255,255,255,.16); --text:#f3f6f4; --muted:#a7b4b0;
     --me:#ffd23f; --hp:#5fdc74; --danger:#ff5a4d;
-    --ui:"Trebuchet MS","Microsoft YaHei","PingFang SC",sans-serif; --mono:Consolas,"Cascadia Mono",monospace;
+    --ui:"Trebuchet MS","Microsoft JhengHei","PingFang TC","Microsoft YaHei",sans-serif; --mono:Consolas,"Cascadia Mono",monospace;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;background:#16201c;overflow:hidden;font-family:var(--ui);color:var(--text);user-select:none}
@@ -77,6 +77,35 @@
   #res-grid div{background:#1c2931;border-radius:8px;padding:10px;text-align:center}
   #res-grid b{display:block;font-family:var(--mono);font-size:24px}
   #res-grid span{font-size:12px;color:var(--muted);letter-spacing:1px}
+  #res-upload{text-align:center;font-size:13px;color:var(--muted);margin-top:14px;min-height:18px}
+  #acct{display:flex;align-items:center;gap:10px;min-height:44px;margin-top:14px;padding:6px 10px;background:#1c2931;border-radius:10px;font-size:13px}
+  #acct .who{flex:1;font-weight:700;font-size:15px}
+  #acct .tip{flex:1;color:var(--muted);font-size:12.5px}
+  #acct button{padding:7px 12px;border-radius:8px;background:#2c3f4a;font-weight:700;font-size:13px}
+  #acct #btn-fill{background:var(--me);color:#241c00}
+  #row-grade.locked .seg{pointer-events:none}
+  #row-grade.locked .seg button:not(.sel){display:none}
+  .card input,.card select{width:100%;padding:10px 12px;border-radius:8px;border:2px solid #3a4d58;background:#16222a;color:var(--text);font:inherit;font-size:16px;user-select:text}
+  .card input:focus,.card select:focus{outline:none;border-color:var(--me)}
+  .preview{margin-top:16px;padding:10px 12px;background:#1c2931;border-radius:8px;font-size:14px}
+  .preview b{font-family:var(--mono);font-size:20px;color:var(--me)}
+  .preview span{display:block;font-size:12px;color:var(--muted);margin-top:4px}
+  .warn{font-size:12.5px;color:#ffb38a;margin-top:10px}
+  #profile-err{min-height:18px;font-size:13px;color:#ffb38a;margin-top:10px;text-align:center}
+  .card.wide{width:820px;padding:20px 26px}
+  .lb-top{display:grid;grid-template-columns:1.5fr 1fr 1.1fr;gap:10px;margin-top:12px}
+  .lb-top .seg button{font-size:13.5px;padding:8px 0}
+  #lb-body{height:372px;overflow-y:auto;margin-top:12px;background:#16222a;border-radius:10px;padding:4px 6px}
+  .lb-msg{padding:60px 0;text-align:center;color:var(--muted)}
+  .lb-row{display:grid;grid-template-columns:44px 1fr 110px 84px 90px 56px;align-items:center;gap:8px;padding:7px 8px;border-radius:7px;font-size:14px}
+  .lb-row:nth-child(even){background:rgba(255,255,255,.035)}
+  .lb-row i{font-style:normal;font-family:var(--mono);font-weight:700;color:var(--muted);text-align:center}
+  .lb-row:nth-child(-n+3) i{color:var(--me)}
+  .lb-row b small{font-weight:400;color:var(--muted);margin-left:8px;font-family:var(--mono)}
+  .lb-row span{text-align:right;color:var(--muted);font-size:13px}
+  .lb-row .sc{font-family:var(--mono);font-weight:700;font-size:16px;color:var(--text)}
+  .lb-row.me{background:rgba(255,210,63,.16);outline:1.5px solid var(--me)}
+  #lb-foot{font-size:12.5px;color:var(--muted);margin-top:10px;text-align:center;min-height:18px}
 </style>
 </head>
 <body>
@@ -93,50 +122,76 @@
     <div class="box" id="scorebox"><div id="hud-score">0</div><div id="hud-kills"></div></div>
     <div id="hud-combo">x0<small id="hud-mult"></small></div>
     <div id="hint"></div>
-    <div class="box" id="helpbox">打字射击 · <kbd>1</kbd>–<kbd>4</kbd> 用道具<br><kbd>Esc</kbd> 暂停</div>
+    <div class="box" id="helpbox">打字射擊 · <kbd>1</kbd>–<kbd>4</kbd> 用道具<br><kbd>Esc</kbd> 暫停</div>
     <div class="box" id="items">
-      <div class="slot" id="slot-bomb"><kbd>1</kbd><i style="background:#ff8a3d"></i><span class="q">0</span><span class="lab">炸弹</span></div>
-      <div class="slot" id="slot-freeze"><kbd>2</kbd><i style="background:#7fd8ff"></i><span class="q">0</span><span class="lab">冰冻</span></div>
-      <div class="slot" id="slot-medkit"><kbd>3</kbd><i style="background:#ff6b81"></i><span class="q">0</span><span class="lab">医疗包</span></div>
-      <div class="slot" id="slot-shield"><kbd>4</kbd><i style="background:#8be28b"></i><span class="q">0</span><span class="lab">护盾</span></div>
+      <div class="slot" id="slot-bomb"><kbd>1</kbd><i style="background:#ff8a3d"></i><span class="q">0</span><span class="lab">炸彈</span></div>
+      <div class="slot" id="slot-freeze"><kbd>2</kbd><i style="background:#7fd8ff"></i><span class="q">0</span><span class="lab">冰凍</span></div>
+      <div class="slot" id="slot-medkit"><kbd>3</kbd><i style="background:#ff6b81"></i><span class="q">0</span><span class="lab">醫療包</span></div>
+      <div class="slot" id="slot-shield"><kbd>4</kbd><i style="background:#8be28b"></i><span class="q">0</span><span class="lab">護盾</span></div>
     </div>
-    <div class="box" id="statbox"><div><b id="hud-wpm">0</b>WPM</div><div><b id="hud-acc">100%</b>准确率</div></div>
+    <div class="box" id="statbox"><div><b id="hud-wpm">0</b>WPM</div><div><b id="hud-acc">100%</b>準確率</div></div>
   </div>
 
   <div class="screen" id="scr-menu">
     <div class="card">
       <h1>打字求生<small>TYPING SURVIVAL</small></h1>
+      <div id="acct" style="display:none"></div>
       <div class="row"><label>模式</label><div class="seg" id="seg-mode"></div><div class="desc" id="mode-desc"></div></div>
-      <div class="row"><label>难度</label><div class="seg" id="seg-diff"></div></div>
-      <div class="row"><label>年段</label><div class="seg" id="seg-grade"></div><div class="desc" id="bank-desc"></div></div>
-      <button class="go" id="btn-start">开始</button>
+      <div class="row"><label>難度</label><div class="seg" id="seg-diff"></div></div>
+      <div class="row" id="row-grade"><label>年段</label><div class="seg" id="seg-grade"></div><div class="desc" id="bank-desc"></div></div>
+      <button class="go" id="btn-start">開始</button>
+      <button class="ghost" id="btn-board" style="display:none">排行榜</button>
       <div id="best"></div>
-      <div class="how">丧尸头上有英文单字，把字打出来就能击倒它。打箱子上的字可以拿道具。</div>
+      <div class="how">喪屍頭上有英文單字，把字打出來就能擊倒它。打箱子上的字可以拿道具。</div>
     </div>
   </div>
 
   <div class="screen" id="scr-pause">
     <div class="card" style="width:380px">
-      <h1 style="font-size:32px">暂停</h1>
-      <button class="go" id="btn-resume">继续</button>
-      <button class="ghost" id="btn-quit">回主画面</button>
+      <h1 style="font-size:32px">暫停</h1>
+      <button class="go" id="btn-resume">繼續</button>
+      <button class="ghost" id="btn-quit">回主畫面</button>
     </div>
   </div>
 
   <div class="screen" id="scr-result">
     <div class="card" style="width:520px">
-      <h1 style="font-size:34px" id="res-title">游戏结束</h1>
+      <h1 style="font-size:34px" id="res-title">遊戲結束</h1>
       <div id="res-score">0</div>
       <div id="res-sub"></div>
       <div id="res-grid"></div>
+      <div id="res-upload"></div>
       <button class="go" id="btn-again">再玩一次</button>
-      <button class="ghost" id="btn-menu">回主画面</button>
+      <button class="ghost" id="btn-menu">回主畫面</button>
+    </div>
+  </div>
+
+  <div class="screen" id="scr-profile">
+    <div class="card" style="width:560px">
+      <h1 style="font-size:30px" id="profile-title">資料</h1>
+      <div id="profile-form"></div>
+      <div id="profile-err"></div>
+      <button class="go" id="btn-profile-save" style="margin-top:8px">儲存</button>
+      <button class="ghost" id="btn-profile-later">先不填（成績不會上排行榜）</button>
+    </div>
+  </div>
+
+  <div class="screen" id="scr-board">
+    <div class="card wide">
+      <h1 style="font-size:28px">排行榜</h1>
+      <div class="lb-top"><div class="seg" id="lb-scope"></div><div class="seg" id="lb-mode"></div><div class="seg" id="lb-diff"></div></div>
+      <div id="lb-body"></div>
+      <div id="lb-foot"></div>
+      <button class="ghost" id="btn-board-back">回主畫面</button>
     </div>
   </div>
 </div>
-<script src="words.js"></script>
-<script src="js/engine.js"></script>
-<script src="js/render.js"></script>
-<script src="js/ui.js"></script>
+<script src="config.js?v=0.2.0"></script>
+<script src="words.js?v=0.2.0"></script>
+<script src="js/engine.js?v=0.2.0"></script>
+<script src="js/render.js?v=0.2.0"></script>
+<script src="js/net.js?v=0.2.0"></script>
+<script src="js/ui.js?v=0.2.0"></script>
+<script src="js/account.js?v=0.2.0"></script>
 </body>
 </html>

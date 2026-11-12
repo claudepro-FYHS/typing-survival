@@ -1,0 +1,7 @@
+/* 打字求生 Typing Survival — 設定
+ * APPS_SCRIPT_URL：Apps Script「部署 → 網頁應用程式」的網址。留空 = 單機模式（沒有登入和排行榜）。
+ * 班級選單、Google Client ID、學年等都在 Google Sheet 的「Settings」分頁裡改。 */
+window.TS_CONFIG = {
+  APPS_SCRIPT_URL: "",
+};
+window.APP_VERSION = "0.2.0";

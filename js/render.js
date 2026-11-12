@@ -189,7 +189,7 @@
       } else if (ev.e === "miss") R.missT = t;
       else if (ev.e === "pickup") R.floats.push({ x: ev.x, y: ev.y - 24, txt: "+ " + ev.item, t0: t, col: ITEM_COLOR[ev.item] });
       else if (ev.e === "wave") R.banner = { txt: "第 " + ev.wave + " 波", t0: t };
-      else if (ev.e === "waveClear") R.floats.push({ x: 640, y: 250, txt: "过关奖励 +" + ev.bonus, t0: t, col: "#fff3b0", big: 1 });
+      else if (ev.e === "waveClear") R.floats.push({ x: 640, y: 250, txt: "過關獎勵 +" + ev.bonus, t0: t, col: "#fff3b0", big: 1 });
       else if (ev.e === "item" && ev.item === "bomb") R.boom = t;
     }
   }
@@ -242,7 +242,7 @@
     R.floats = R.floats.filter((f) => t - f.t0 < 0.9);
     for (const f of R.floats) {
       const k = (t - f.t0) / 0.9;
-      c.globalAlpha = 1 - k * k; c.font = `800 ${f.big ? 30 : 20}px "Trebuchet MS", "Microsoft YaHei", sans-serif`; c.textAlign = "center"; c.textBaseline = "middle";
+      c.globalAlpha = 1 - k * k; c.font = `800 ${f.big ? 30 : 20}px "Trebuchet MS", "Microsoft JhengHei", "Microsoft YaHei", sans-serif`; c.textAlign = "center"; c.textBaseline = "middle";
       c.lineWidth = 5; c.strokeStyle = INK; c.strokeText(f.txt, f.x, f.y - k * 34); c.fillStyle = f.col; c.fillText(f.txt, f.x, f.y - k * 34);
       c.globalAlpha = 1;
     }
@@ -257,7 +257,7 @@
     }
     if (R.banner && t - R.banner.t0 < 1.6) {
       const k = (t - R.banner.t0) / 1.6, a = k < 0.15 ? k / 0.15 : k > 0.75 ? (1 - k) / 0.25 : 1;
-      c.globalAlpha = a; c.font = '800 64px "Trebuchet MS", "Microsoft YaHei", sans-serif'; c.textAlign = "center"; c.textBaseline = "middle";
+      c.globalAlpha = a; c.font = '800 64px "Trebuchet MS", "Microsoft JhengHei", "Microsoft YaHei", sans-serif'; c.textAlign = "center"; c.textBaseline = "middle";
       c.lineWidth = 10; c.strokeStyle = INK; c.strokeText(R.banner.txt, 640, 210); c.fillStyle = "#fff"; c.fillText(R.banner.txt, 640, 210);
       c.globalAlpha = 1;
     }

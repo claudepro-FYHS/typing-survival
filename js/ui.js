@@ -6,9 +6,9 @@
   "use strict";
   const E = window.TSEngine, RD = window.TSRender, $ = (s) => document.querySelector(s);
   const GRADES = [["J1", "初一"], ["J2", "初二"], ["J3", "初三"], ["S1", "高一"], ["S2", "高二"], ["S3", "高三"]];
-  const MODES = { classic: "传统模式", free: "自由模式" };
-  const DIFFS = { easy: "简单", normal: "普通", hard: "困难" };
-  const ITEM_NAME = { bomb: "炸弹", freeze: "冰冻", medkit: "医疗包", shield: "护盾" };
+  const MODES = { classic: "傳統模式", free: "自由模式" };
+  const DIFFS = { easy: "簡單", normal: "普通", hard: "困難" };
+  const ITEM_NAME = { bomb: "炸彈", freeze: "冰凍", medkit: "醫療包", shield: "護盾" };
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem("tsv_" + k)); return v == null ? d : v; } catch (e) { return d; } };
   const save = (k, v) => { try { localStorage.setItem("tsv_" + k, JSON.stringify(v)); } catch (e) {} };
 
@@ -33,15 +33,19 @@
     el.innerHTML = Object.keys(map).map((k) => `<button data-v="${k}" class="${S.prefs[key] === k ? "sel" : ""}">${map[k]}</button>`).join("");
     el.onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; S.prefs[key] = b.dataset.v; save("prefs", S.prefs); renderMenu(); };
   }
-  function topicName(g) { const t = window.TS_WORDS.topics[g]; return t ? "一般单字 + " + t.name : "一般单字"; }
+  function topicName(g) { const t = window.TS_WORDS.topics[g]; return t ? "一般單字 + " + t.name : "一般單字"; }
   function renderMenu() {
+    const A = window.TSAccount, locked = A ? A.lockedGrade() : "";
+    if (A) A.renderAcct();
+    if (locked && Object.fromEntries(GRADES)[locked]) S.prefs.grade = locked;   // school students get their own grade's words
     seg($("#seg-mode"), MODES, "mode"); seg($("#seg-diff"), DIFFS, "diff"); seg($("#seg-grade"), Object.fromEntries(GRADES), "grade");
+    $("#row-grade").classList.toggle("locked", !!locked);
     $("#mode-desc").textContent = S.prefs.mode === "free"
-      ? "打到一半可以随时改打别的丧尸，已打的进度会保留。换目标时连击归零。"
-      : "打了第一个字母就锁定那只丧尸，必须把它的字打完。";
-    $("#bank-desc").textContent = "词库：" + topicName(S.prefs.grade);
+      ? "打到一半可以隨時改打別的喪屍，已打的進度會保留。換目標時連擊歸零。"
+      : "打了第一個字母就鎖定那隻喪屍，必須把它的字打完。";
+    $("#bank-desc").textContent = "詞庫：" + topicName(S.prefs.grade);
     const b = load("best_" + S.prefs.mode + "_" + S.prefs.diff, null);
-    $("#best").textContent = b ? `最佳纪录：${b.score.toLocaleString()} 分 · 第 ${b.wave} 波 · ${Math.round(b.wpm)} WPM` : "最佳纪录：还没有";
+    $("#best").textContent = b ? `最佳紀錄：${b.score.toLocaleString()} 分 · 第 ${b.wave} 波 · ${Math.round(b.wpm)} WPM` : "最佳紀錄：還沒有";
   }
 
   /* ---------- game ---------- */
@@ -61,12 +65,13 @@
     const G = S.G, st = E.stats(G), key = "best_" + G.mode + "_" + G.diff, old = load(key, null);
     const isBest = !old || st.score > old.score;
     if (isBest) save(key, { score: st.score, wave: st.wave, wpm: st.wpm, acc: st.acc, at: Date.now() });
-    $("#res-title").textContent = isBest && st.score > 0 ? "新纪录！" : "游戏结束";
+    $("#res-title").textContent = isBest && st.score > 0 ? "新紀錄！" : "遊戲結束";
     $("#res-score").textContent = st.score.toLocaleString();
-    $("#res-grid").innerHTML = [["波数", st.wave], ["击倒", st.kills], ["WPM", Math.round(st.wpm)], ["准确率", Math.round(st.acc * 100) + "%"], ["最高连击", st.maxCombo], ["时间", fmtTime(st.time)]]
+    $("#res-grid").innerHTML = [["波數", st.wave], ["擊倒", st.kills], ["WPM", Math.round(st.wpm)], ["準確率", Math.round(st.acc * 100) + "%"], ["最高連擊", st.maxCombo], ["時間", fmtTime(st.time)]]
       .map(([a, b]) => `<div><b>${b}</b><span>${a}</span></div>`).join("");
     $("#res-sub").textContent = MODES[G.mode] + " · " + DIFFS[G.diff] + (old && !isBest ? ` · 最佳 ${old.score.toLocaleString()}` : "");
     show("result");
+    if (window.TSAccount) window.TSAccount.submit(G, st);
   }
   const fmtTime = (s) => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
 
@@ -75,10 +80,10 @@
     $("#hp-fill").style.width = (G.hp / G.maxHp) * 100 + "%";
     $("#hp-fill").className = G.hp / G.maxHp < 0.3 ? "low" : "";
     $("#hp-num").textContent = Math.ceil(G.hp);
-    $("#hud-wave").textContent = G.wave ? "第 " + G.wave + " 波" : "准备";
-    $("#hud-left").textContent = G.resting ? "下一波即将开始" : "剩余 " + (G.toSpawn + E.enemies(G).length) + " 只 · " + fmtTime(G.t);
+    $("#hud-wave").textContent = G.wave ? "第 " + G.wave + " 波" : "準備";
+    $("#hud-left").textContent = G.resting ? "下一波即將開始" : "剩餘 " + (G.toSpawn + E.enemies(G).length) + " 隻 · " + fmtTime(G.t);
     $("#hud-score").textContent = G.score.toLocaleString();
-    $("#hud-kills").textContent = "击倒 " + G.kills;
+    $("#hud-kills").textContent = "擊倒 " + G.kills;
     const cb = $("#hud-combo");
     cb.style.opacity = G.combo >= 5 ? 1 : 0;
     cb.firstChild.textContent = "x" + G.combo;
@@ -114,13 +119,13 @@
     if (S.screen === "game" || S.screen === "pause") {
       if (ev.key === "Escape") { show(S.screen === "game" ? "pause" : "game"); ev.preventDefault(); return; }
       if (S.screen !== "game" || S.G.over) return;
-      if (ev.isComposing || ev.key === "Process" || ev.keyCode === 229) { hintMsg("请切换到英文输入法"); return; }
+      if (ev.isComposing || ev.key === "Process" || ev.keyCode === 229) { hintMsg("請切換到英文輸入法"); return; }
       if (/^[1-4]$/.test(ev.key)) { E.useItem(S.G, E.ITEMS[+ev.key - 1]); ev.preventDefault(); return; }
       if (/^[a-zA-Z]$/.test(ev.key)) {
-        if (ev.getModifierState && ev.getModifierState("CapsLock")) hintMsg("Caps Lock 开着");
+        if (ev.getModifierState && ev.getModifierState("CapsLock")) hintMsg("Caps Lock 開著");
         E.key(S.G, ev.key.toLowerCase()); ev.preventDefault();
       }
-    } else if (ev.key === "Enter") {
+    } else if (ev.key === "Enter" && !/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(ev.target.tagName)) {
       if (S.screen === "menu" || S.screen === "result") start();
     }
   });
@@ -132,6 +137,7 @@
   $("#btn-resume").onclick = () => show("game");
   $("#btn-quit").onclick = () => { S.G = null; renderMenu(); show("menu"); };
 
+  window.TSUI = { S, $, show, renderMenu, MODES, DIFFS };
   renderMenu(); show("menu");
   requestAnimationFrame(frame);
   window.__TSV = { S, start, finish };   // for tests
