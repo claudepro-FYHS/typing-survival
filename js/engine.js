@@ -201,8 +201,10 @@
       for (const p of standing(G)) { const d = d2(e, p); if (d < best) { best = d; T = p; } }
       if (!T) return end(G);
       if (e.tp !== T.pid) { e.tp = T.pid; e.biting = false; }
+      // "close enough" needs slack: walking to exactly `stop` leaves the distance a hair
+      // above it (rounding), and such an enemy would creep forever and never bite.
       const stop = 30 + e.r;
-      if (best > stop) {
+      if (best > stop + 0.5) {
         const v = Math.min(KIND[e.kind].speed * speedUp * dt, best - stop);
         e.x += ((T.x - e.x) / best) * v; e.y += ((T.y - e.y) / best) * v;
         e.biting = false;

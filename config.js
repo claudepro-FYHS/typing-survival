@@ -6,4 +6,4 @@ window.TS_CONFIG = {
   PEER_SERVER: null,
   APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbxuuPzfCxSNfNMJV_zAo0l0nMp_jErzyQqOqlTvUL-VD24tfhWK7oEzF1QxBR0p1pGe7g/exec",
 };
-window.APP_VERSION = "0.3.0";
+window.APP_VERSION = "0.3.1";

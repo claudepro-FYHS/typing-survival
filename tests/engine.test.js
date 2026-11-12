@@ -118,6 +118,19 @@ test("solo: biting hurts, shield blocks, freeze stops, game ends at 0 hp", () =>
   assert.strictEqual(E.key(G, "d"), false);
 });
 
+test("every enemy that reaches the player bites, from any direction and frame rate", () => {
+  for (const fps of [30, 60, 144]) {
+    const G = mk("free"), P = G.players[0];
+    hold(G); P.maxHp = P.hp = 1e9;
+    let s = fps; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const list = [];
+    for (let i = 0; i < 150; i++) { const a = rnd() * 6.283, d = 150 + rnd() * 400; list.push(E.addEnemy(G, ["normal", "runner", "tank"][i % 3], 640 + Math.cos(a) * d, 360 + Math.sin(a) * d, ["dog"])); }
+    for (let i = 0; i < fps * 45; i++) E.step(G, (1 / fps) * (0.9 + 0.2 * rnd()));
+    const bit = new Set(G.ev.filter((e) => e.e === "bite").map((e) => e.id));
+    assert.strictEqual(list.filter((e) => !e.biting || !bit.has(e.id)).length, 0, "enemies that never bite at " + fps + " fps");
+  }
+});
+
 test("co-op: shared health, own progress, score by letters typed", () => {
   const G = mk("free", { players: team(2) }), [A, B] = G.players;
   assert.ok(A.x !== B.x || A.y !== B.y, "players stand apart");
