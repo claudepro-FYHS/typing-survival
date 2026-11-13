@@ -149,4 +149,145 @@ test("busy lock answers busy", () => {
   ctx.__lockBusy = false;
 });
 
+/* ---------------- shop ---------------- */
+const SHOPJS = require("../shop.js");
+const row = (email) => env.sheets.Players.data.find((r) => r[0] === email);
+const me = (tok) => post({ action: "me", token: tok }).player;
+let S1, S2;
+
+test("shop: the backend and shop.js list the same things at the same prices", () => {
+  const back = ctx.SHOP, front = SHOPJS.byId;
+  assert.deepStrictEqual(Object.keys(back).sort(), Object.keys(front).sort());
+  for (const id in back) {
+    const f = front[id];
+    assert.deepStrictEqual([back[id][0], back[id][1], back[id][2] || "", back[id][3] || ""], [f.type, f.price, f.char || "", f.unlock || ""], id);
+  }
+  const total = Object.values(back).reduce((n, x) => n + x[1], 0);
+  assert.strictEqual(total, 6510, "price of the whole shop");
+  const c = post({ action: "config" });
+  assert.strictEqual(c.prices.medic, 300);
+  assert.ok(env.sheets.Shop.data.length > 30 && !env.sheets.Shop.data.some((r) => r[0] === "student" || r[0] === "student.hero"), "Shop tab lists only what is sold");
+});
+
+test("coins: wave x15 + letters/5, x difficulty; 3 full games a day, then 30%", () => {
+  S1 = login("s1@foonyew.edu.my");
+  assert.strictEqual(post(run({ token: S1.token })).error, "no_profile", "no coins before the class is filled in");
+  post({ action: "saveProfile", token: S1.token, name: "林一", grade: "J2", classNo: 3, seat: 9 });
+  assert.deepStrictEqual([me(S1.token).coins, me(S1.token).owned, me(S1.token).equip], [0, [], { char: "student", skin: "", scene: "park", weapon: "keyboard" }]);
+  let r = post(run({ token: S1.token }));                               // wave 4, 300 letters, normal
+  assert.deepStrictEqual(r.coins, { earned: 120, total: 120, full: true, left: 2, unlocked: [] });
+  r = post(run({ token: S1.token, diff: "hard" })); assert.strictEqual(r.coins.earned, 156);
+  r = post(run({ token: S1.token, diff: "easy" })); assert.deepStrictEqual([r.coins.earned, r.coins.left], [96, 0]);
+  r = post(run({ token: S1.token }));               assert.deepStrictEqual([r.coins.earned, r.coins.full, r.coins.total], [36, false, 408]);
+  r = post(run({ token: S1.token, time: 20, hits: 30, keys: 30, wave: 1, kills: 3, score: 300, maxCombo: 30 }));
+  assert.strictEqual(r.coins.earned, 0, "a game under 30 s earns nothing");
+  r = post(run({ token: S1.token, input: "touch" })); assert.deepStrictEqual([r.ranked, r.coins.earned], [false, 36]);
+  row("s1@foonyew.edu.my")[12] = "2020-01-01";                           // a new day
+  r = post(run({ token: S1.token })); assert.deepStrictEqual([r.coins.earned, r.coins.left], [120, 2]);
+  assert.strictEqual(post(run({ token: S1.token, score: 10 ** 9 })).error, "rejected");
+  assert.strictEqual(me(S1.token).coins, 564, "a rejected score pays nothing");
+  setting("CoinFullGamesPerDay", "1"); setting("CoinLaterPercent", "50");
+  assert.strictEqual(post(run({ token: S1.token })).coins.earned, 60);
+  setting("CoinFullGamesPerDay", "3"); setting("CoinLaterPercent", "30");
+});
+
+test("co-op games: coins and totals, never the leaderboard", () => {
+  const before = env.sheets.Scores.data.length;
+  row("s1@foonyew.edu.my")[12] = "2020-01-02";
+  const r = post(run({ token: S1.token, coop: true, revives: 3, score: 3300 }));
+  assert.deepStrictEqual([r.ranked, r.reason, r.coins.earned], [false, "coop", 120]);
+  assert.strictEqual(env.sheets.Scores.data.length, before);
+  assert.strictEqual(JSON.parse(row("s1@foonyew.edu.my")[14]).r, 3);
+});
+
+test("buying: price, coins, need the character first, no double buying, Shop tab prices", () => {
+  const buy = (id, tok) => post({ action: "buy", token: tok || S1.token, id });
+  const coins = me(S1.token).coins;
+  assert.strictEqual(buy("nothing").error, "bad_item");
+  assert.strictEqual(buy("student").error, "already_owned");
+  assert.strictEqual(buy("student.hero").error, "not_for_sale");
+  assert.strictEqual(buy("medic.pink").error, "need_char");
+  let r = buy("medic");
+  assert.deepStrictEqual([r.ok, r.player.coins, r.player.owned], [true, coins - 300, ["medic"]]);
+  assert.strictEqual(buy("medic").error, "already_owned");
+  r = buy("medic.pink"); assert.deepStrictEqual([r.player.coins, r.player.owned], [coins - 380, ["medic", "medic.pink"]]);
+  r = buy("student.red"); assert.strictEqual(r.player.coins, coins - 460, "skins of the free character need no purchase first");
+  row("s1@foonyew.edu.my")[9] = 100;
+  r = buy("scene.snow"); assert.deepStrictEqual([r.error, r.price, r.coins], ["not_enough", 250, 100]);
+  env.sheets.Shop.data.find((x) => x[0] === "scene.snow")[1] = 90;       // the teacher changes a price in the sheet
+  delete env.cache.prices;
+  r = buy("scene.snow"); assert.deepStrictEqual([r.ok, r.player.coins], [true, 10]);
+  assert.strictEqual(post({ action: "config" }).prices["scene.snow"], 90);
+  assert.strictEqual(buy("weapon.laser", "bad").error, "session_expired");
+  const G = login("guest9@gmail.com");
+  assert.strictEqual(buy("medic", G.token).error, "no_profile");
+});
+
+test("using: only what you own; a skin must fit the character", () => {
+  const use = (o, tok) => post(Object.assign({ action: "equip", token: tok || S1.token }, o)).player.equip;
+  assert.deepStrictEqual(use({ char: "medic", skin: "medic.pink", scene: "snow", weapon: "laser" }), { char: "medic", skin: "medic.pink", scene: "snow", weapon: "keyboard" });
+  assert.deepStrictEqual(use({ char: "guard", skin: "guard.knight", scene: "night", weapon: "keyboard" }), { char: "student", skin: "", scene: "park", weapon: "keyboard" });
+  assert.deepStrictEqual(use({ char: "student", skin: "medic.pink" }), { char: "student", skin: "", scene: "park", weapon: "keyboard" });
+  assert.deepStrictEqual(use({ char: "student", skin: "student.red", scene: "<x>", weapon: 5 }), { char: "student", skin: "student.red", scene: "park", weapon: "keyboard" });
+  assert.deepStrictEqual(me(S1.token).equip.skin, "student.red", "kept for the next visit");
+});
+
+test("teachers have everything without paying", () => {
+  const t = me(T.token);
+  assert.strictEqual(t.all, true);
+  assert.strictEqual(t.owned.length, Object.keys(ctx.SHOP).length);
+  const r = post({ action: "equip", token: T.token, char: "guard", skin: "guard.knight", scene: "night", weapon: "wand" });
+  assert.deepStrictEqual(r.player.equip, { char: "guard", skin: "guard.knight", scene: "night", weapon: "wand" });
+  const b = post({ action: "buy", token: T.token, id: "medic" });
+  assert.deepStrictEqual([b.ok, b.player.coins], [true, me(T.token).coins], "nothing is charged");
+});
+
+test("achievement skins unlock from running totals", () => {
+  const stats = () => JSON.parse(row("s1@foonyew.edu.my")[14]);
+  row("s1@foonyew.edu.my")[14] = JSON.stringify({ k: 4990, r: 98, c: 60 });
+  let r = post(run({ token: S1.token, kills: 9, maxCombo: 99 }));
+  assert.deepStrictEqual(r.coins.unlocked, []);
+  r = post(run({ token: S1.token, kills: 5, maxCombo: 120 }));
+  assert.deepStrictEqual(r.coins.unlocked.sort(), ["bomber.hunter", "lucky.combo"]);
+  assert.deepStrictEqual([stats().k, stats().c], [5004, 120]);
+  r = post(run({ token: S1.token, coop: true, revives: 2, score: 3200 }));
+  assert.deepStrictEqual(r.coins.unlocked, ["student.hero"]);
+  assert.deepStrictEqual(post(run({ token: S1.token })).coins.unlocked, [], "only announced once");
+  const eq = post({ action: "equip", token: S1.token, char: "student", skin: "student.hero" }).player.equip;
+  assert.strictEqual(eq.skin, "student.hero");
+});
+
+test("coin gifts from the teacher: by class, grade, stream, email or ALL, once each", () => {
+  S2 = login("s2@foonyew.edu.my");
+  post({ action: "saveProfile", token: S2.token, name: "陳二", grade: "S1AC", classNo: 2, seat: 4 });
+  const gifts = env.sheets.CoinGifts.data, c1 = me(S1.token).coins;
+  assert.strictEqual(gifts[0][0], "Target");
+  gifts.push(["J203", 50, "班際比賽冠軍", "2026-11-13"]);
+  gifts.push(["S1AC", 20, "", ""]);
+  gifts.push(["ALL", 5, "", ""]);
+  gifts.push(["s2@foonyew.edu.my", 7, "幫忙測試", ""]);
+  gifts.push(["J2", 0, "zero is ignored", ""]);
+  let a = post({ action: "me", token: S1.token });
+  assert.deepStrictEqual([a.gift, a.player.coins], [{ coins: 55, notes: ["班際比賽冠軍"] }, c1 + 55]);
+  a = post({ action: "me", token: S1.token });
+  assert.deepStrictEqual([a.gift, a.player.coins], [undefined, c1 + 55], "not twice");
+  const b = login("s2@foonyew.edu.my");
+  assert.deepStrictEqual([b.gift.coins, b.player.coins], [32, 32]);
+  gifts.push(["J2", 10, "", ""]);
+  assert.strictEqual(post({ action: "me", token: S1.token }).gift.coins, 10, "a new row is a new gift");
+  ctx.__lockBusy = true; gifts.push(["ALL", 1, "x", ""]);
+  assert.strictEqual(post({ action: "me", token: S1.token }).gift, undefined, "busy: it waits for the next visit");
+  ctx.__lockBusy = false;
+  assert.strictEqual(post({ action: "me", token: S1.token }).gift.coins, 1);
+});
+
+test("players from before the shop: old rows still read, header gets the new columns", () => {
+  env.sheets.Players.data[0].length = 9;
+  env.sheets.Players.data.push(["old@foonyew.edu.my", "舊生", "", "J203", 5, "2026", new Date(), "", 2]);
+  const o = login("old@foonyew.edu.my");
+  assert.deepStrictEqual([o.player.coins, o.player.owned, o.player.cls], [66, [], "J203"], "starts with nothing but the gifts waiting for J203 / J2 / ALL");
+  assert.strictEqual(env.sheets.Players.data[0].length, 16);
+  assert.strictEqual(post(run({ token: o.token })).coins.earned, 120);
+});
+
 console.log(n + " tests passed");

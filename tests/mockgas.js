@@ -59,6 +59,6 @@ function makeEnv(opts = {}) {
   };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
-  return { ctx, sheets, ss };
+  return { ctx, sheets, ss, cache };
 }
 module.exports = { makeEnv, BOOKS };

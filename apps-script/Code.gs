@@ -11,7 +11,8 @@
 
 var SHEET_PLAYERS = 'Players', SHEET_SCORES = 'Scores', SHEET_SETTINGS = 'Settings',
     SHEET_TEACHERS = 'Teachers', SHEET_BANNED = 'BannedWords';
-var PLAYER_HEADERS = ['Email', 'Name', 'Nickname', 'Class', 'Seat No', 'Class Year', 'First Seen', 'Last Played', 'Games'];
+var PLAYER_HEADERS = ['Email', 'Name', 'Nickname', 'Class', 'Seat No', 'Class Year', 'First Seen', 'Last Played', 'Games',
+                      'Coins', 'Owned', 'Using', 'Coin Day', 'Games That Day', 'Totals', 'Gifts Taken'];
 var SCORE_HEADERS = ['Year', 'Email', 'Mode', 'Difficulty', 'Score', 'Wave', 'Kills', 'WPM', 'Accuracy %', 'Max Combo', 'Seconds', 'Time'];
 var TEACHER_HEADERS = ['Email', 'Note'];
 var DEFAULT_SETTINGS = [
@@ -24,6 +25,8 @@ var DEFAULT_SETTINGS = [
   ['MaxSeatNo', '60', '座號最大值'],
   ['AllowOtherAccounts', 'YES', 'YES = 非學校 Google 帳號可登入（公開榜）'],
   ['LeaderboardSize', '50', '排行榜顯示幾名'],
+  ['CoinFullGamesPerDay', '3', '每天前幾場拿全額金幣'],
+  ['CoinLaterPercent', '30', '超過之後每場拿幾 % 金幣'],
 ];
 var MODES = ['classic', 'free'], DIFFS = ['easy', 'normal', 'hard'], ALL = 'all';
 var STAFF_CLASS = 'STAFF';
@@ -85,6 +88,8 @@ function getSettings_() {
   out.maxSeat = Number(out.MaxSeatNo) || 60;
   out.allowOthers = String(out.AllowOtherAccounts || 'YES').toUpperCase() !== 'NO';
   out.boardSize = Math.max(10, Math.min(200, Number(out.LeaderboardSize) || 50));
+  out.coinFull = out.CoinFullGamesPerDay === undefined || out.CoinFullGamesPerDay === '' ? 3 : Math.max(0, Number(out.CoinFullGamesPerDay) || 0);
+  out.coinLater = out.CoinLaterPercent === undefined || out.CoinLaterPercent === '' ? 30 : Math.max(0, Math.min(100, Number(out.CoinLaterPercent) || 0));
   SETTINGS_MEMO_ = out;
   return out;
 }
@@ -99,7 +104,7 @@ function isSchool_(email, s) { return String(email).toLowerCase().split('@')[1] 
 /* ------------------------------------------------------------------ */
 
 function doGet(e) {
-  SETTINGS_MEMO_ = null;
+  SETTINGS_MEMO_ = null; PRICES_MEMO_ = null;
   try {
     if (e && e.parameter && e.parameter.action === 'config') return json_(config_());
     return json_({ ok: true, message: 'Typing Survival backend is running.' });
@@ -109,7 +114,7 @@ function doGet(e) {
 function doPost(e) {
   var body = {};
   try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (x) { return json_({ ok: false, error: 'bad_request' }); }
-  SETTINGS_MEMO_ = null;
+  SETTINGS_MEMO_ = null; PRICES_MEMO_ = null;
   try {
     switch (body.action) {
       case 'config': return json_(config_());
@@ -118,6 +123,8 @@ function doPost(e) {
       case 'saveProfile': return json_(withLock_(function () { return saveProfile_(body); }));
       case 'submitScore': return json_(withLock_(function () { return submitScore_(body); }));
       case 'leaderboard': return json_(leaderboard_(body));
+      case 'buy': return json_(withLock_(function () { return buy_(body); }));
+      case 'equip': return json_(withLock_(function () { return equip_(body); }));
       case 'classes': return json_(classes_(body));
     }
     return json_({ ok: false, error: 'unknown_action' });
@@ -137,7 +144,8 @@ function withLock_(fn) {
 function config_() {
   var s = getSettings_();
   return { ok: true, clientId: s.GoogleClientId || '', domain: s.domain, year: s.year, grades: s.grades,
-           maxClass: s.maxClass, maxSeat: s.maxSeat, allowOthers: s.allowOthers };
+           maxClass: s.maxClass, maxSeat: s.maxSeat, allowOthers: s.allowOthers,
+           prices: prices_(), coinFull: s.coinFull, coinLater: s.coinLater };
 }
 
 /* ------------------------------------------------------------------ */
@@ -197,13 +205,27 @@ function teacherMap_() {
   return map;
 }
 function rowToPlayer_(r) {
+  var st = parse_(r[14], {});
   return { email: String(r[0]).trim().toLowerCase(), name: String(r[1] || ''), nick: String(r[2] || ''), cls: String(r[3] || '').toUpperCase(),
-           seat: Number(r[4]) || 0, classYear: String(r[5] || ''), first: r[6] || '', last: r[7] || '', games: Number(r[8]) || 0 };
+           seat: Number(r[4]) || 0, classYear: String(r[5] || ''), first: r[6] || '', last: r[7] || '', games: Number(r[8]) || 0,
+           coins: Math.max(0, Math.floor(Number(r[9]) || 0)), owned: list_(r[10]), equip: parse_(r[11], {}),
+           day: r[12] instanceof Date ? ymd_(r[12]) : String(r[12] || '').replace(/^'/, ''), dayGames: Number(r[13]) || 0,
+           stats: { k: Number(st.k) || 0, r: Number(st.r) || 0, c: Number(st.c) || 0 }, gifts: list_(r[15]) };
 }
-function playerRow_(p) { return [p.email, p.name, p.nick, p.cls, p.seat || '', p.classYear, p.first, p.last, p.games]; }
+function playerRow_(p) {
+  return [p.email, p.name, p.nick, p.cls, p.seat || '', p.classYear, p.first, p.last, p.games,
+          p.coins, p.owned.join(', '), JSON.stringify(p.equip), "'" + p.day, p.dayGames, JSON.stringify(p.stats), p.gifts.join(', ')];
+}
+function newPlayer_(email, name) {
+  return { email: email, name: name || '', nick: '', cls: '', seat: 0, classYear: '', first: new Date(), last: '', games: 0,
+           coins: 0, owned: [], equip: {}, day: '', dayGames: 0, stats: { k: 0, r: 0, c: 0 }, gifts: [] };
+}
+function parse_(v, d) { try { var o = JSON.parse(String(v || '')); return o && typeof o === 'object' ? o : d; } catch (e) { return d; } }
+function list_(v) { return String(v || '').split(/[,\s]+/).filter(String); }
 function findPlayer_(email) {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PLAYERS);
   var v = sh.getDataRange().getValues();
+  if ((v[0] || []).length < PLAYER_HEADERS.length) sh.getRange(1, 1, 1, PLAYER_HEADERS.length).setValues([PLAYER_HEADERS]); // sheet made before the shop existed
   for (var i = 1; i < v.length; i++) if (String(v[i][0]).trim().toLowerCase() === email) return { row: i + 1, data: rowToPlayer_(v[i]), sheet: sh };
   return { row: 0, data: null, sheet: sh };
 }
@@ -215,14 +237,32 @@ function writePlayer_(found, p) {
 // What the page needs to know about the signed-in account.
 function account_(email, googleName) {
   var s = getSettings_(), school = isSchool_(email, s), teacher = !!teacherMap_()[email];
-  var p = findPlayer_(email).data;
-  return { ok: true, email: email, year: s.year, player: describe_(p, email, googleName, school, teacher, s) };
+  var p = findPlayer_(email).data, gift = null;
+  if (p && pendingGifts_(p, email).length) {          // only then is a write (and the lock) needed
+    var got = withLock_(function () {
+      var f = findPlayer_(email), list = f.data ? pendingGifts_(f.data, email) : [];
+      if (!list.length) return { ok: true, coins: 0, notes: [] };
+      var sum = 0, notes = [];
+      list.forEach(function (g) { sum += g.coins; f.data.gifts.push(g.key); if (g.note) notes.push(g.note); });
+      f.data.coins += sum;
+      writePlayer_(f, f.data);
+      return { ok: true, coins: sum, notes: notes, p: f.data };
+    });
+    if (got && got.ok && got.coins) { p = got.p; gift = { coins: got.coins, notes: got.notes }; }
+  }
+  var out = { ok: true, email: email, year: s.year, player: describe_(p, email, googleName, school, teacher, s) };
+  if (gift) out.gift = gift;
+  return out;
 }
 function describe_(p, email, googleName, school, teacher, s) {
   var d = { school: school, teacher: teacher, name: (p && p.name) || googleName || '', nick: (p && p.nick) || '', cls: '', seat: 0, grade: '' };
   if (teacher) d.cls = STAFF_CLASS;
   else if (school && p && p.cls && p.classYear === s.year) { d.cls = p.cls; d.seat = p.seat; d.grade = gradeOf_(p.cls); }
   d.needsProfile = teacher ? false : school ? !d.cls : !d.nick;
+  d.coins = p ? p.coins : 0;
+  d.all = teacher;                                     // teachers have everything in the shop
+  d.owned = teacher ? Object.keys(SHOP) : (p ? p.owned.filter(function (id) { return !!SHOP[id]; }) : []);
+  d.equip = cleanEquip_(p ? p.equip : {}, hasFn_(p, teacher));
   return d;
 }
 
@@ -231,7 +271,7 @@ function saveProfile_(body) {
   if (!t) return { ok: false, error: 'session_expired' };
   var s = getSettings_(), email = t.e, school = isSchool_(email, s), teacher = !!teacherMap_()[email];
   var found = findPlayer_(email);
-  var p = found.data || { email: email, name: t.n || '', nick: '', cls: '', seat: 0, classYear: '', first: new Date(), last: '', games: 0 };
+  var p = found.data || newPlayer_(email, t.n);
   if (teacher) return { ok: false, error: 'not_needed' };
   if (school) {
     if (p.cls && p.classYear === s.year) return { ok: false, error: 'locked' }; // only a teacher can change it, in the sheet
@@ -266,7 +306,7 @@ function plausible_(r) {
   if (r.hits / 5 / (r.time / 60) > MAX_WPM) return false;
   if (!(r.wave >= 0 && r.wave <= 500 && r.kills >= 0 && r.kills <= r.hits + r.wave * 20)) return false;
   if (r.wave > 1 && r.time < (r.wave - 1) * 4) return false;
-  var maxScore = 35 * r.hits + 50 * r.wave * (r.wave + 1) + 100 * r.kills;
+  var maxScore = 35 * r.hits + 50 * r.wave * (r.wave + 1) + 100 * r.kills + 100 * (r.revives || 0);
   if (!(r.score >= 0 && r.score <= maxScore)) return false;
   return r.maxCombo >= 0 && r.maxCombo <= r.hits;
 }
@@ -278,13 +318,17 @@ function submitScore_(body) {
   if (MODES.indexOf(body.mode) === -1 || DIFFS.indexOf(body.diff) === -1) return { ok: false, error: 'bad_request' };
   var r = { score: int_(body.score), wave: int_(body.wave), kills: int_(body.kills), hits: int_(body.hits), keys: int_(body.keys),
             time: Number(body.time), maxCombo: int_(body.maxCombo) };
+  var coop = body.coop === true;                       // a co-op game: coins and totals, but no leaderboard
+  r.revives = coop ? Math.max(0, Math.min(200, int_(body.revives) || 0)) : 0;
   if (!plausible_(r)) return { ok: false, error: 'rejected' };
   var found = findPlayer_(email), p = found.data;
   if (describe_(p, email, t.n || '', school, teacher, s).needsProfile) return { ok: false, error: 'no_profile' };
-  if (!p) p = { email: email, name: t.n || '', nick: '', cls: '', seat: 0, classYear: '', first: new Date(), last: '', games: 0 };
+  if (!p) p = newPlayer_(email, t.n);
   p.last = new Date(); p.games++;
+  var coin = earn_(p, r, body.diff, s);
   writePlayer_(found, p);
-  if (body.input === 'touch') return { ok: true, ranked: false, reason: 'touch' };
+  if (coop) return { ok: true, ranked: false, reason: 'coop', coins: coin };
+  if (body.input === 'touch') return { ok: true, ranked: false, reason: 'touch', coins: coin };
 
   var wpm = Math.round(r.hits / 5 / (r.time / 60) * 10) / 10, acc = r.keys ? Math.round(r.hits / r.keys * 1000) / 10 : 100;
   var row = [s.year, email, body.mode, body.diff, r.score, r.wave, r.kills, wpm, acc, r.maxCombo, Math.round(r.time), new Date()];
@@ -292,14 +336,160 @@ function submitScore_(body) {
   for (var i = 1; i < v.length; i++) {
     if (String(v[i][0]) === s.year && String(v[i][1]).toLowerCase() === email && v[i][2] === body.mode && v[i][3] === body.diff) { at = i + 1; old = Number(v[i][4]) || 0; break; }
   }
-  if (at && old >= r.score) return { ok: true, ranked: true, best: false, bestScore: old };
+  if (at && old >= r.score) return { ok: true, ranked: true, best: false, bestScore: old, coins: coin };
   if (at) sh.getRange(at, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
   var cache = CacheService.getScriptCache();
   ['class', 'grade', 'school', 'public'].forEach(function (scope) {
     var g = groupFor_(scope, p, school, teacher);
     cache.remove(boardKey_(scope, g, body.mode, body.diff, s.year)); cache.remove(boardKey_(scope, g, ALL, ALL, s.year));
   });
-  return { ok: true, ranked: true, best: true, bestScore: r.score, prev: old };
+  return { ok: true, ranked: true, best: true, bestScore: r.score, prev: old, coins: coin };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Shop: coins, characters, skins, scenes, weapons                    */
+/* ------------------------------------------------------------------ */
+
+var SHEET_SHOP = 'Shop', SHEET_GIFTS = 'CoinGifts';
+// id: [type, default price, the character a skin belongs to, what unlocks it (not for sale)]
+// Must list the same ids as shop.js. Prices can be changed in the Shop tab.
+var SHOP = {
+  'student': ['char', 0], 'medic': ['char', 300], 'bomber': ['char', 300], 'froster': ['char', 300], 'guard': ['char', 300], 'lucky': ['char', 300],
+  'student.red': ['skin', 80, 'student'], 'student.purple': ['skin', 80, 'student'], 'student.ninja': ['skin', 200, 'student'],
+  'student.gold': ['skin', 500, 'student'], 'student.hero': ['skin', 0, 'student', 'revives100'],
+  'medic.pink': ['skin', 80, 'medic'], 'medic.green': ['skin', 80, 'medic'], 'medic.doctor': ['skin', 200, 'medic'],
+  'bomber.desert': ['skin', 80, 'bomber'], 'bomber.navy': ['skin', 80, 'bomber'], 'bomber.hardhat': ['skin', 200, 'bomber'],
+  'bomber.hunter': ['skin', 0, 'bomber', 'kills5000'],
+  'froster.mint': ['skin', 80, 'froster'], 'froster.navy': ['skin', 80, 'froster'], 'froster.penguin': ['skin', 200, 'froster'],
+  'froster.aurora': ['skin', 500, 'froster'],
+  'guard.bronze': ['skin', 80, 'guard'], 'guard.black': ['skin', 80, 'guard'], 'guard.robot': ['skin', 200, 'guard'], 'guard.knight': ['skin', 500, 'guard'],
+  'lucky.orange': ['skin', 80, 'lucky'], 'lucky.pink': ['skin', 80, 'lucky'], 'lucky.bunny': ['skin', 200, 'lucky'],
+  'lucky.combo': ['skin', 0, 'lucky', 'combo100'],
+  'scene.park': ['scene', 0], 'scene.school': ['scene', 250], 'scene.night': ['scene', 250], 'scene.snow': ['scene', 250],
+  'weapon.keyboard': ['weapon', 0], 'weapon.water': ['weapon', 150], 'weapon.laser': ['weapon', 150], 'weapon.wand': ['weapon', 150], 'weapon.sling': ['weapon', 150]
+};
+// totals: k = zombies knocked down, r = teammates revived, c = best combo in one game
+var UNLOCKS = {
+  revives100: function (t) { return t.r >= 100; },
+  kills5000: function (t) { return t.k >= 5000; },
+  combo100: function (t) { return t.c >= 100; }
+};
+var COIN_DIFF = { easy: 0.8, normal: 1, hard: 1.3 };
+var PRICES_MEMO_ = null;
+
+// id -> price. The Shop tab (made on first use) can change a price; unlock-only items are not in it.
+function prices_() {
+  if (PRICES_MEMO_) return PRICES_MEMO_;
+  var cache = CacheService.getScriptCache(), hit = cache.get('prices');
+  if (hit) { try { PRICES_MEMO_ = JSON.parse(hit); return PRICES_MEMO_; } catch (e) {} }
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), sh = ss.getSheetByName(SHEET_SHOP), out = {}, id;
+  for (id in SHOP) out[id] = SHOP[id][1];
+  if (!sh) {
+    sh = ensureSheet_(ss, SHEET_SHOP, ['Id', 'Price', 'Type', '說明：只改 Price 這一欄。Id 不要改。']);
+    for (id in SHOP) if (!SHOP[id][3] && SHOP[id][1] > 0) sh.appendRow([id, SHOP[id][1], SHOP[id][0], '']);
+  } else {
+    sh.getDataRange().getValues().slice(1).forEach(function (r) {
+      var k = String(r[0]).trim(), v = Number(r[1]);
+      if (SHOP[k] && !SHOP[k][3] && SHOP[k][1] > 0 && String(r[1]) !== '' && isFinite(v) && v >= 1) out[k] = Math.floor(v);
+    });
+  }
+  cache.put('prices', JSON.stringify(out), 60);
+  PRICES_MEMO_ = out;
+  return out;
+}
+
+function hasFn_(p, teacher) {
+  var set = {};
+  if (p) p.owned.forEach(function (id) { set[id] = true; });
+  return function (id) { return !!SHOP[id] && (teacher || !!set[id] || (SHOP[id][1] === 0 && !SHOP[id][3])); };
+}
+// what the player is using, with anything they do not own replaced by the free default
+function cleanEquip_(e, has) {
+  e = e || {};
+  var out = { char: 'student', skin: '', scene: 'park', weapon: 'keyboard' };
+  if (SHOP[e.char] && SHOP[e.char][0] === 'char' && has(e.char)) out.char = e.char;
+  if (SHOP[e.skin] && SHOP[e.skin][0] === 'skin' && SHOP[e.skin][2] === out.char && has(e.skin)) out.skin = e.skin;
+  if (SHOP['scene.' + e.scene] && has('scene.' + e.scene)) out.scene = String(e.scene);
+  if (SHOP['weapon.' + e.weapon] && has('weapon.' + e.weapon)) out.weapon = String(e.weapon);
+  return out;
+}
+
+// Coins for one finished game, the running totals, and anything those totals unlock. Changes p.
+function earn_(p, r, diff, s) {
+  var today = ymd_(new Date()), earned = 0, full = true;
+  if (r.time >= 30) {                                   // very short games earn nothing and do not use up a full-coin game
+    if (p.day !== today) { p.day = today; p.dayGames = 0; }
+    full = p.dayGames < s.coinFull;
+    earned = Math.round((r.wave * 15 + r.hits / 5) * (COIN_DIFF[diff] || 1) * (full ? 1 : s.coinLater / 100));
+    p.dayGames++;
+  }
+  p.coins += earned;
+  p.stats.k += r.kills; p.stats.r += r.revives || 0; p.stats.c = Math.max(p.stats.c, r.maxCombo);
+  var unlocked = [];
+  for (var id in SHOP) {
+    var u = SHOP[id][3];
+    if (u && UNLOCKS[u] && UNLOCKS[u](p.stats) && p.owned.indexOf(id) === -1) { p.owned.push(id); unlocked.push(id); }
+  }
+  return { earned: earned, total: p.coins, full: full, left: Math.max(0, s.coinFull - p.dayGames), unlocked: unlocked };
+}
+
+function shopReply_(p, t, s) {
+  var school = isSchool_(t.e, s), teacher = !!teacherMap_()[t.e];
+  return { ok: true, email: t.e, year: s.year, player: describe_(p, t.e, t.n || '', school, teacher, s) };
+}
+function shopPlayer_(body) {
+  var t = checkToken_(body.token);
+  if (!t) return { error: 'session_expired' };
+  var s = getSettings_(), found = findPlayer_(t.e), teacher = !!teacherMap_()[t.e];
+  var p = found.data || newPlayer_(t.e, t.n);
+  if (describe_(found.data, t.e, t.n || '', isSchool_(t.e, s), teacher, s).needsProfile) return { error: 'no_profile' };
+  return { t: t, s: s, found: found, p: p, teacher: teacher };
+}
+
+function buy_(body) {
+  var c = shopPlayer_(body);
+  if (c.error) return { ok: false, error: c.error };
+  var id = String(body.id || ''), item = SHOP[id], p = c.p;
+  if (!item) return { ok: false, error: 'bad_item' };
+  if (c.teacher) return shopReply_(p, c.t, c.s);        // already has everything
+  if (item[3]) return { ok: false, error: 'not_for_sale' };
+  if (item[1] === 0 || p.owned.indexOf(id) !== -1) return { ok: false, error: 'already_owned' };
+  if (item[0] === 'skin' && !hasFn_(p, false)(item[2])) return { ok: false, error: 'need_char' };
+  var price = prices_()[id];
+  if (p.coins < price) return { ok: false, error: 'not_enough', price: price, coins: p.coins };
+  p.coins -= price; p.owned.push(id);
+  writePlayer_(c.found, p);
+  return shopReply_(p, c.t, c.s);
+}
+
+function equip_(body) {
+  var c = shopPlayer_(body);
+  if (c.error) return { ok: false, error: c.error };
+  c.p.equip = cleanEquip_({ char: body.char, skin: body.skin, scene: body.scene, weapon: body.weapon }, hasFn_(c.p, c.teacher));
+  writePlayer_(c.found, c.p);
+  return shopReply_(c.p, c.t, c.s);
+}
+
+// CoinGifts tab: Target | Coins | Note | Date. Target = ALL, a grade (J2), a stream (S1AC), a class (J203) or an email.
+// Each row is given once per player; a row is recognised by its four cells, so two identical rows count as one.
+function hash_(str) { var h = 5381; for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0; return h.toString(36); }
+function pendingGifts_(p, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), sh = ss.getSheetByName(SHEET_GIFTS);
+  if (!sh) {
+    sh = ensureSheet_(ss, SHEET_GIFTS, ['Target', 'Coins', 'Note', 'Date', '', '說明：Target 填 ALL、年段(J2)、科別(S1AC)、班級(J203) 或 email。學生下次登入時收到。同一行只會送一次。']);
+    return [];
+  }
+  var out = [], s = getSettings_(), cls = p.classYear === s.year ? p.cls : '';
+  sh.getDataRange().getValues().slice(1).forEach(function (r) {
+    var target = String(r[0]).trim(), coins = Math.floor(Number(r[1]) || 0);
+    if (!target || coins < 1 || coins > 100000) return;
+    var T = target.toUpperCase();
+    var match = T === 'ALL' || target.toLowerCase() === email || (cls && (cls === T || gradeOf_(cls) === T || cls.replace(/\d+$/, '') === T));
+    if (!match) return;
+    var key = hash_([T, coins, String(r[2] || ''), r[3] instanceof Date ? ymd_(r[3]) : String(r[3] || '')].join('|'));
+    if (p.gifts.indexOf(key) === -1 && !out.some(function (g) { return g.key === key; })) out.push({ key: key, coins: coins, note: String(r[2] || '') });
+  });
+  return out;
 }
 
 /* ------------------------------------------------------------------ */
