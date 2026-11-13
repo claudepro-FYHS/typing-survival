@@ -146,6 +146,30 @@
   #mp-msg{min-height:20px;text-align:center;font-size:13px;color:var(--muted);margin-top:12px}
   #mp-msg.bad{color:#ffb38a}
   .go:disabled{opacity:.4;cursor:default;filter:none}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .two:has(#btn-shop[style*="none"]){grid-template-columns:1fr}
+  .coin{display:inline-block;width:13px;height:13px;border-radius:50%;background:#ffc93c;border:2px solid #a87400;vertical-align:-1px;margin-right:5px}
+  #acct .coins{font-family:var(--mono);font-weight:700;font-size:15px;color:#ffe08a;margin-right:4px}
+  #gift-tip{display:none;margin-top:8px;padding:8px 12px;border-radius:8px;background:#3a3410;border:1px solid #c9a227;color:#ffe9a3;font-size:13.5px;text-align:center}
+  #gift-tip.on{display:block}
+  #res-coins{text-align:center;margin-top:8px;min-height:22px;font-size:13px;color:var(--muted)}
+  #res-coins b{color:#ffe08a;font-size:17px;margin-right:10px}
+  #res-coins em{display:block;font-style:normal;color:var(--me);font-weight:700;margin-top:4px}
+  .card.shop{width:960px;padding:18px 24px}
+  .shop-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  #shop-coins{font-family:var(--mono);font-size:20px;font-weight:700;color:#ffe08a}
+  #shop-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;height:400px;overflow-y:auto;margin-top:12px;padding:4px;align-content:start}
+  .sc-card{background:#1c2931;border:2px solid transparent;border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:4px;text-align:center}
+  .sc-card.on{border-color:var(--me)}
+  .sc-card canvas{width:100%;border-radius:7px;display:block}
+  .sc-card b{font-size:15px}
+  .sc-card b em{font-style:normal;font-size:10.5px;font-weight:700;margin-left:6px;padding:1px 6px;border-radius:8px;background:#34454f;color:#cfd8d4;vertical-align:2px}
+  .sc-card.t-rare b em{background:#2f5fa8;color:#fff}.sc-card.t-legend b em{background:#c9871a;color:#fff}.sc-card.t-feat b em{background:#8a3fb8;color:#fff}
+  .sc-card span{font-size:11.5px;color:var(--muted);min-height:30px;line-height:1.3}
+  .sb{margin-top:auto;padding:7px 4px;border-radius:7px;font-weight:700;font-size:13px;background:#2c3f4a}
+  .sb.buy{background:var(--me);color:#241c00}.sb.sure{background:#ff8a3d;color:#241000}.sb.use{background:#3d7bd9}
+  .sb.on{background:none;color:var(--me);cursor:default}.sb.lock{background:#222e35;color:#8b9a94;cursor:default;font-weight:400;font-size:12px}
+  #shop-msg{min-height:20px;text-align:center;font-size:13px;color:#ffe9a3;margin-top:8px}
 </style>
 </head>
 <body>
@@ -174,11 +198,12 @@
     <div class="card">
       <h1>打字求生<small>TYPING SURVIVAL</small></h1>
       <div id="acct" style="display:none"></div>
+      <div id="gift-tip"></div>
       <div class="row"><label>模式</label><div class="seg" id="seg-mode"></div><div class="desc" id="mode-desc"></div></div>
       <div class="row"><label>難度</label><div class="seg" id="seg-diff"></div></div>
       <div class="row" id="row-grade"><label>年段</label><div class="seg" id="seg-grade"></div><div class="desc" id="bank-desc"></div></div>
       <button class="go" id="btn-start">開始</button>
-      <button class="ghost" id="btn-multi">多人連線（2–6 人）</button>
+      <div class="two"><button class="ghost" id="btn-multi">多人連線（2–6 人）</button><button class="ghost" id="btn-shop" style="display:none">商店 · 角色</button></div>
       <button class="ghost" id="btn-board" style="display:none">排行榜</button>
       <div id="best"></div>
       <div class="how">喪屍頭上有英文單字，把字打出來就能擊倒它。打箱子上的字可以拿道具。</div>
@@ -202,6 +227,7 @@
       <div id="res-grid"></div>
       <div id="res-team" style="display:none"></div>
       <div id="res-upload"></div>
+      <div id="res-coins"></div>
       <button class="go" id="btn-again">再玩一次</button>
       <button class="ghost" id="btn-menu">回主畫面</button>
     </div>
@@ -214,6 +240,16 @@
       <div id="profile-err"></div>
       <button class="go" id="btn-profile-save" style="margin-top:8px">儲存</button>
       <button class="ghost" id="btn-profile-later">先不填（成績不會上排行榜）</button>
+    </div>
+  </div>
+
+  <div class="screen" id="scr-shop">
+    <div class="card shop">
+      <div class="shop-top"><h1 style="font-size:26px;text-align:left">商店</h1><div id="shop-coins"></div></div>
+      <div class="seg" id="shop-tabs"></div>
+      <div id="shop-grid"></div>
+      <div id="shop-msg"></div>
+      <button class="ghost" id="btn-shop-back">回主畫面</button>
     </div>
   </div>
 
@@ -247,15 +283,16 @@
     </div>
   </div>
 </div>
-<script src="config.js?v=0.3.3"></script>
-<script src="words.js?v=0.3.3"></script>
-<script src="shop.js?v=0.3.3"></script>
-<script src="lib/peerjs.min.js?v=0.3.3"></script>
-<script src="js/engine.js?v=0.3.3"></script>
-<script src="js/render.js?v=0.3.3"></script>
-<script src="js/net.js?v=0.3.3"></script>
-<script src="js/ui.js?v=0.3.3"></script>
-<script src="js/room.js?v=0.3.3"></script>
-<script src="js/account.js?v=0.3.3"></script>
+<script src="config.js?v=0.4.0"></script>
+<script src="words.js?v=0.4.0"></script>
+<script src="shop.js?v=0.4.0"></script>
+<script src="lib/peerjs.min.js?v=0.4.0"></script>
+<script src="js/engine.js?v=0.4.0"></script>
+<script src="js/render.js?v=0.4.0"></script>
+<script src="js/net.js?v=0.4.0"></script>
+<script src="js/ui.js?v=0.4.0"></script>
+<script src="js/room.js?v=0.4.0"></script>
+<script src="js/shopui.js?v=0.4.0"></script>
+<script src="js/account.js?v=0.4.0"></script>
 </body>
 </html>

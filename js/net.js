@@ -32,7 +32,7 @@
   };
 
   function remember() { try { if (N.token) localStorage.setItem("tsv_session", N.token); else localStorage.removeItem("tsv_session"); } catch (e) {} }
-  function take(r) { if (r && r.ok && r.player) { N.player = r.player; N.email = r.email || N.email; } return r; }
+  function take(r) { if (r && r.ok && r.player) { N.player = r.player; N.email = r.email || N.email; if (r.gift) N.gift = r.gift; } return r; }
 
   N.loadConfig = async function () { const r = await N.post("config", null, 2); if (r && r.ok) N.config = r; else N.offline = true; return r; };
   N.restore = async function () {
@@ -52,6 +52,10 @@
   N.submitScore = (data) => N.post("submitScore", Object.assign({ token: N.token }, data), 6);
   N.leaderboard = (scope, mode, diff, group) => N.post("leaderboard", { token: N.token, scope, mode, diff, group }, 2);
   N.classes = () => N.post("classes", { token: N.token }, 2);
+  N.buy = async (id) => take(await N.post("buy", { token: N.token, id }, 3));
+  N.equip = async (e) => take(await N.post("equip", Object.assign({ token: N.token }, e), 3));
+  // coins after a game: the server counted them, here they are only shown
+  N.addCoins = (c) => { if (c && N.player) { N.player.coins = c.total; for (const id of c.unlocked || []) if (N.player.owned.indexOf(id) === -1) N.player.owned.push(id); } };
   N.ready = () => !!(N.token && N.player && !N.player.needsProfile);
 
   window.TSNet = N;

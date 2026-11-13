@@ -29,13 +29,20 @@
   /* ---------- account bar on the menu ---------- */
   function renderAcct() {
     const el = $("#acct");
-    if (!N.enabled()) { el.style.display = "none"; $("#btn-board").style.display = "none"; return; }
-    el.style.display = ""; $("#btn-board").style.display = "";
+    if (!N.enabled()) { el.style.display = "none"; $("#btn-board").style.display = "none"; $("#btn-shop").style.display = "none"; return; }
+    el.style.display = ""; $("#btn-board").style.display = ""; $("#btn-shop").style.display = "";
     if (N.token && N.player) {
       el.innerHTML = `<span class="who">${esc(label(N.player))}</span>` +
+        (N.player.needsProfile || N.player.all ? "" : `<span class="coins"><i class="coin"></i>${Number(N.player.coins || 0).toLocaleString()}</span>`) +
         (N.player.needsProfile ? `<button id="btn-fill">填寫資料</button>` : "") + `<button id="btn-logout">登出</button>`;
       $("#btn-logout").onclick = () => { N.logout(); UI.renderMenu(); };
       if ($("#btn-fill")) $("#btn-fill").onclick = openProfile;
+      if (N.gift) {                                   // coins a teacher gave since the last visit
+        const g = N.gift; N.gift = null;
+        const tip = $("#gift-tip");
+        tip.textContent = `老師送你 ${g.coins} 金幣！` + (g.notes && g.notes.length ? "（" + g.notes.join("、") + "）" : "");
+        tip.classList.add("on"); setTimeout(() => tip.classList.remove("on"), 8000);
+      }
     } else {
       el.innerHTML = `<div id="gbtn"></div><span class="tip" id="acct-tip">登入後成績才會上排行榜。不登入也可以玩。</span>`;
       drawGoogleButton();
@@ -167,8 +174,9 @@
   /* ---------- score upload after a game ---------- */
   async function submit(G, st) {
     const el = $("#res-upload");
+    $("#res-coins").innerHTML = "";
     if (!N.enabled()) { el.textContent = ""; return; }
-    if (!N.token) { el.textContent = "沒有登入，成績不會上排行榜。"; return; }
+    if (!N.token) { el.textContent = "沒有登入，成績不會上排行榜，也沒有金幣。"; return; }
     if (!N.ready()) { el.textContent = "還沒填寫資料，成績不會上排行榜。"; return; }
     el.textContent = "成績上傳中…"; B.cache = {};
     const r = await N.submitScore({ mode: G.mode, diff: G.diff, score: st.score, wave: st.wave, kills: st.kills, hits: st.hits, keys: st.keys,
@@ -176,6 +184,24 @@
     if (!r || !r.ok) el.textContent = r && r.error === "rejected" ? "成績沒有被接受。" : r && r.error === "session_expired" ? "登入已過期，這次成績沒有上傳。" : "上傳失敗，這次成績只存在這台電腦。";
     else if (!r.ranked) el.textContent = "已記錄（觸控鍵盤的成績不上排行榜）。";
     else el.textContent = r.best ? "已上傳，這是你今年的最佳成績！" : `已上傳。你今年的最佳成績是 ${Number(r.bestScore).toLocaleString()} 分。`;
+    showCoins(r);
+  }
+  function showCoins(r) {
+    const el = $("#res-coins"), c = r && r.ok ? r.coins : null;
+    if (!c) { el.innerHTML = ""; return; }
+    N.addCoins(c);
+    const S = window.TS_SHOP;
+    el.innerHTML = `<b><i class="coin"></i>+${c.earned} 金幣</b><span>` +
+      (c.earned === 0 ? "這場太短，沒有金幣" : c.full ? (c.left > 0 ? `今天還有 ${c.left} 場全額` : "今天的全額場次用完了") : `今天已超過全額場次，只拿 ${N.config ? N.config.coinLater : 30}%`) + `</span>` +
+      (c.unlocked || []).map((id) => `<em>解鎖成就造型「${esc(S.byId[id] ? S.byId[id].name : id)}」！</em>`).join("");
+  }
+  // co-op: no leaderboard, but coins and totals (kills, revives, best combo) count
+  async function submitCoop(G, st) {
+    $("#res-coins").innerHTML = "";
+    if (!N.enabled() || !N.ready()) return;
+    const r = await N.submitScore({ coop: true, mode: G.mode, diff: G.diff, score: st.score, wave: st.wave, kills: st.kills, hits: st.hits, keys: st.keys,
+      time: Math.round(st.time * 10) / 10, maxCombo: st.maxCombo, revives: st.revives, input: "kb" });
+    showCoins(r);
   }
 
   async function boot() {
@@ -192,6 +218,6 @@
   $("#btn-profile-later").onclick = () => { UI.renderMenu(); UI.show("menu"); };
   $("#acct").addEventListener("click", (ev) => { if (ev.target.id === "btn-fake-login") signIn("fake:" + (window.__TSV_FAKE_EMAIL || "a@foonyew.edu.my")); });
 
-  window.TSAccount = { renderAcct, lockedGrade, submit, openBoard, openProfile, boot };
+  window.TSAccount = { renderAcct, lockedGrade, submit, submitCoop, openBoard, openProfile, boot };
   boot();
 })();

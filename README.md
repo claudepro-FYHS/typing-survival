@@ -56,6 +56,15 @@ Open it in Chrome on a computer with a real keyboard.
 - 房主請不要關掉網頁或切換到別的分頁，否則整個房間會卡住或結束。
 - 多人連線的成績不進排行榜。
 
+### 金幣和商店
+- 登入並填好資料後，每玩一場（單人或多人）都會拿到金幣。撐越多波、打對越多字母、難度越高，金幣越多。
+- 每天前 3 場拿全額，之後每場只有三成。不到 30 秒的場次沒有金幣。
+- 主畫面按「商店 · 角色」可以買**角色**、**造型**、**場景**和**武器**。
+  - 角色開場會多帶一個道具或有小能力（例如醫護兵帶 1 個醫療包）。
+  - 造型、場景、武器只改變外觀。買造型前要先擁有那個角色。
+  - 有些造型不能買，要達成成就才會解鎖（例如累計救起隊友 100 次）。
+- 多人連線時，隊友看得到你的角色和造型；場景用房主的。
+
 ### 登入和排行榜
 - 用 Google 帳號登入後，單人模式的成績會上排行榜。不登入也可以玩。
 - 學校帳號第一次登入要填班級和座號（例：`J203`、`S1S2`、`S1AC1`），填了就不能自己改，要改請找老師。
@@ -112,6 +121,15 @@ Co-op rules:
 - The game ends when **everyone is down**.
 - The host should keep the game tab open and in front; closing it or switching tabs freezes or ends the room.
 - Co-op scores are not ranked.
+
+### Coins and the shop
+- Once you are signed in and your details are filled in, every game (solo or co-op) pays coins: more waves, more correct letters and a higher difficulty pay more.
+- The first 3 games each day pay in full, later ones 30%. Games shorter than 30 seconds pay nothing.
+- Press 商店 · 角色 on the main screen to buy **characters**, **skins**, **scenes** and **weapons**.
+  - A character starts with an extra item or a small ability (the medic starts with a medkit, for example).
+  - Skins, scenes and weapons only change the look. You need the character before you can buy its skins.
+  - Some skins cannot be bought and unlock through achievements (reviving teammates 100 times, for example).
+- In co-op your teammates see your character and skin; the scene is the host's.
 
 ### Sign-in and leaderboards
 - Sign in with Google to put your solo scores on the leaderboards. You can also play without signing in.

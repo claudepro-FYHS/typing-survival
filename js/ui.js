@@ -71,16 +71,19 @@
     $("#pause-note").textContent = role === "solo" ? "" : "多人遊戲不會暫停。" + (role === "host" ? "你是房主，離開的話這場遊戲會結束。" : "");
     show("game");
   }
+  // what the signed-in player chose in the shop (character, skin, scene, weapon)
+  function myEquip() { const N = window.TSNet; return N && N.token && N.player && N.player.equip ? N.player.equip : window.TS_SHOP.DEFAULT; }
   function start(seed) {                                   // solo
-    const b = wordsFor(S.prefs.grade);
+    const b = wordsFor(S.prefs.grade), eq = myEquip();
     begin("solo", "p0");
-    S.G = E.createGame({ mode: S.prefs.mode, diff: S.prefs.diff, words: b.words, topic: b.topic, seed });
+    S.G = E.createGame({ mode: S.prefs.mode, diff: S.prefs.diff, words: b.words, topic: b.topic, seed, scene: eq.scene,
+      players: [{ pid: "p0", name: "", look: { char: eq.char, skin: eq.skin, weapon: eq.weapon } }] });
     $("#hud-mode").textContent = MODES[S.prefs.mode] + " · " + DIFFS[S.prefs.diff];
   }
   function beginHost(players, st) {
     const b = wordsFor(st.grade);
     begin("host", "p0");
-    S.G = E.createGame({ mode: st.mode, diff: st.diff, words: b.words, topic: b.topic, players, seed: st.seed });
+    S.G = E.createGame({ mode: st.mode, diff: st.diff, words: b.words, topic: b.topic, players, seed: st.seed, scene: st.scene });
     $("#hud-mode").textContent = MODES[st.mode] + " · " + DIFFS[st.diff] + " · " + players.length + " 人";
     let last = performance.now(), n = 0;
     S.timer = setInterval(() => {
@@ -119,7 +122,7 @@
     const G = S.G;
     if (!G || !G.over || S.screen === "result") return;
     const st = E.stats(G, S.me);
-    $("#res-upload").textContent = "";
+    $("#res-upload").textContent = ""; $("#res-coins").innerHTML = "";
     if (multi()) {
       const rows = G.players.slice().sort((a, b) => b.score - a.score), total = rows.reduce((n, p) => n + p.score, 0);
       $("#res-title").textContent = "全隊倒下";
@@ -131,6 +134,7 @@
         return `<div class="tr${p.pid === S.me ? " me" : ""}"><b><i style="background:${RD.PCOL[p.i % RD.PCOL.length]}"></i>${esc(p.name || "玩家")}${p.left ? "（已離開）" : ""}</b><span class="sc">${p.score.toLocaleString()}</span><span>${Math.round(s.wpm)}</span><span>${Math.round(s.acc * 100)}%</span><span>${p.revives}</span></div>`;
       }).join("");
       $("#res-upload").textContent = "多人連線的成績不進排行榜。";
+      if (window.TSAccount) window.TSAccount.submitCoop(G, st);
       $("#btn-again").textContent = "回房間"; $("#btn-menu").textContent = "離開房間";
       if (S.timer) { clearInterval(S.timer); S.timer = 0; }
       show("result");
@@ -222,7 +226,7 @@
   $("#btn-resume").onclick = () => show("game");
   $("#btn-quit").onclick = () => (multi() ? room().leave() : toMenu());
 
-  window.TSUI = { S, $, esc, show, renderMenu, toMenu, settingsText, beginHost, beginGuest, applySnap, hostInput, stopGame, MODES, DIFFS };
+  window.TSUI = { S, $, esc, show, renderMenu, toMenu, settingsText, myEquip, beginHost, beginGuest, applySnap, hostInput, stopGame, MODES, DIFFS };
   renderMenu(); show("menu");
   requestAnimationFrame(frame);
   window.__TSV = { S, start, finish };   // for tests

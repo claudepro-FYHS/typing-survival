@@ -384,6 +384,7 @@ function prices_() {
   if (hit) { try { PRICES_MEMO_ = JSON.parse(hit); return PRICES_MEMO_; } catch (e) {} }
   var ss = SpreadsheetApp.getActiveSpreadsheet(), sh = ss.getSheetByName(SHEET_SHOP), out = {}, id;
   for (id in SHOP) out[id] = SHOP[id][1];
+  giftSheet_();                                          // so the teacher finds the tab before the first gift
   if (!sh) {
     sh = ensureSheet_(ss, SHEET_SHOP, ['Id', 'Price', 'Type', '說明：只改 Price 這一欄。Id 不要改。']);
     for (id in SHOP) if (!SHOP[id][3] && SHOP[id][1] > 0) sh.appendRow([id, SHOP[id][1], SHOP[id][0], '']);
@@ -470,15 +471,16 @@ function equip_(body) {
   return shopReply_(c.p, c.t, c.s);
 }
 
+function giftSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  return ss.getSheetByName(SHEET_GIFTS) || ensureSheet_(ss, SHEET_GIFTS, ['Target', 'Coins', 'Note', 'Date', '',
+    '說明：Target 填 ALL、年段(J2)、科別(S1AC)、班級(J203) 或 email。學生下次登入時收到。同一行只會送一次。']);
+}
 // CoinGifts tab: Target | Coins | Note | Date. Target = ALL, a grade (J2), a stream (S1AC), a class (J203) or an email.
 // Each row is given once per player; a row is recognised by its four cells, so two identical rows count as one.
 function hash_(str) { var h = 5381; for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0; return h.toString(36); }
 function pendingGifts_(p, email) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet(), sh = ss.getSheetByName(SHEET_GIFTS);
-  if (!sh) {
-    sh = ensureSheet_(ss, SHEET_GIFTS, ['Target', 'Coins', 'Note', 'Date', '', '說明：Target 填 ALL、年段(J2)、科別(S1AC)、班級(J203) 或 email。學生下次登入時收到。同一行只會送一次。']);
-    return [];
-  }
+  var sh = giftSheet_();
   var out = [], s = getSettings_(), cls = p.classYear === s.year ? p.cls : '';
   sh.getDataRange().getValues().slice(1).forEach(function (r) {
     var target = String(r[0]).trim(), coins = Math.floor(Number(r[1]) || 0);

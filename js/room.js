@@ -18,6 +18,7 @@
     if (CFG.PEER_SERVER) Object.assign(o, CFG.PEER_SERVER);
     return o;
   }
+  const myLook = () => { const e = UI.myEquip(); return { char: e.char, skin: e.skin, weapon: e.weapon }; };
   const genCode = () => Array.from({ length: 5 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
   function myName() {
     let v = ($("#mp-name").value || "").trim().replace(/\s+/g, " ").slice(0, 12);
@@ -26,6 +27,7 @@
     try { localStorage.setItem("tsv_nick", v); } catch (e) {}
     return v;
   }
+  function charName(p) { const c = window.TS_SHOP.byId[p.look && p.look.char]; return c && c.type === "char" && c.id !== "student" ? c.name : ""; }
   function msg(text, bad) { const el = $("#mp-msg"); el.textContent = text || ""; el.className = bad ? "bad" : ""; }
   const sendTo = (conn, m) => { try { if (conn && conn.open) conn.send(m); } catch (e) {} };
   const broadcast = (m) => { for (const pid in R.conns) sendTo(R.conns[pid], m); };
@@ -39,7 +41,7 @@
     $("#mp-code").textContent = R.code;
     $("#mp-settings").textContent = R.settings ? UI.settingsText(R.settings) : "";
     $("#mp-players").innerHTML = R.lobby.map((p, i) =>
-      `<div class="mp-p"><i style="background:${RD.PCOL[i % RD.PCOL.length]}"></i><b>${esc(p.name)}</b><span>${p.pid === "p0" ? "房主" : ""}${p.pid === R.me ? "（你）" : ""}</span></div>`).join("") +
+      `<div class="mp-p"><i style="background:${RD.PCOL[i % RD.PCOL.length]}"></i><b>${esc(p.name)}</b><span>${esc(charName(p))} ${p.pid === "p0" ? "房主" : ""}${p.pid === R.me ? "（你）" : ""}</span></div>`).join("") +
       Array.from({ length: MAX - R.lobby.length }, () => `<div class="mp-p empty"><i></i><b>等待加入…</b><span></span></div>`).join("");
     const host = R.role === "host";
     $("#btn-mp-start").style.display = host ? "" : "none";
@@ -86,7 +88,7 @@
     R.settings = { mode: UI.S.prefs.mode, diff: UI.S.prefs.diff, grade: UI.S.prefs.grade };
     msg("建立房間中…");
     const peer = R.peer = new Peer(PREFIX + code, peerOptions());
-    peer.on("open", () => { R.me = "p0"; R.lobby = [{ pid: "p0", name }]; render(); });
+    peer.on("open", () => { R.me = "p0"; R.lobby = [{ pid: "p0", name, look: myLook() }]; render(); });
     peer.on("error", (err) => {
       if (R.peer !== peer) return;
       if (err.type === "unavailable-id" && (retry || 0) < 3) return host((retry || 0) + 1);
@@ -112,7 +114,8 @@
       if (R.lobby.length >= MAX) return sendTo(conn, { t: "no", why: "full" });
       conn.pid = "p" + R.nextPid++;
       R.conns[conn.pid] = conn;
-      R.lobby.push({ pid: conn.pid, name: String(d.name || "玩家").slice(0, 12) });
+      const l = d.look && typeof d.look === "object" ? d.look : {};
+      R.lobby.push({ pid: conn.pid, name: String(d.name || "玩家").slice(0, 12), look: { char: String(l.char || ""), skin: String(l.skin || ""), weapon: String(l.weapon || "") } });
       sendTo(conn, Object.assign({ you: conn.pid }, lobbyMsg()));
       broadcast(lobbyMsg()); render();
       return;
@@ -133,8 +136,9 @@
   function startGame() {
     if (R.role !== "host" || R.lobby.length < 2 || R.started) return;
     R.started = true; R.out = [];
-    R.settings = { mode: UI.S.prefs.mode, diff: UI.S.prefs.diff, grade: UI.S.prefs.grade, seed: (Math.random() * 0xffffffff) >>> 0 };
-    const players = R.lobby.map((p) => ({ pid: p.pid, name: p.name }));
+    R.settings = { mode: UI.S.prefs.mode, diff: UI.S.prefs.diff, grade: UI.S.prefs.grade, seed: (Math.random() * 0xffffffff) >>> 0, scene: UI.myEquip().scene };
+    R.lobby[0].look = myLook();
+    const players = R.lobby.map((p) => ({ pid: p.pid, name: p.name, look: p.look }));
     broadcast({ t: "start", settings: R.settings, count: players.length });
     UI.beginHost(players, R.settings);
     sync(true);
@@ -166,7 +170,7 @@
     peer.on("error", (err) => { if (!R.me) fail(err.type === "peer-unavailable" ? "找不到房間 " + code + "，請檢查房號。" : "連線失敗，請檢查網路後再試。"); });
     peer.on("open", () => {
       const conn = R.host = peer.connect(PREFIX + code, { reliable: true, serialization: "json" });
-      conn.on("open", () => sendTo(conn, { t: "hello", name }));
+      conn.on("open", () => sendTo(conn, { t: "hello", name, look: myLook() }));
       conn.on("data", guestData);
       conn.on("close", () => { if (R.peer === peer && R.me) leave("和房主的連線斷了。"); });
     });
