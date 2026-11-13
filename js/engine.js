@@ -29,6 +29,15 @@
   const ITEMS = ["bomb", "freeze", "medkit", "shield"];
   const ITEM_MAX = 3, BOMB_RADIUS = 300, FREEZE_SEC = 5, SHIELD_SEC = 6, MEDKIT_HP = 35;
   const CRATE_CHANCE = 0.12, CRATE_TTL = 12, REVIVE_HP = 50, MAX_PLAYERS = 6, RING = 54;
+  // What each character starts with (shop.js describes them to the player). Nothing here adds score.
+  const CHARS = {
+    student: {},
+    medic:   { item: "medkit", medkitHp: 50 },
+    bomber:  { item: "bomb", bombR: 380 },
+    froster: { item: "freeze", freezeSec: 7 },
+    guard:   { item: "shield", maxHp: 120 },
+    lucky:   { crate: 0.18 },
+  };
 
   function mulberry32(a) {
     return function () {
@@ -53,17 +62,22 @@
       rnd: mulberry32(o.seed == null ? (Date.now() & 0xffffffff) : o.seed),
       general: bucket(o.words), topic: bucket(o.topic),
       t: 0, kills: 0, wave: 0, toSpawn: 0, spawnT: 0, resting: false, rest: 0,
-      ents: [], nextId: 1, freezeT: 0, over: false, ev: [], n: list.length,
+      ents: [], nextId: 1, freezeT: 0, over: false, ev: [], n: list.length, scene: o.scene || "park",
     };
     G.D = DIFF[G.diff];
     G.players = list.map((p, i) => {
       const a = -Math.PI / 2 + (i * 2 * Math.PI) / list.length, r = list.length > 1 ? RING : 0;
-      return {
+      const look = p.look || {}, C = (!o.noAbilities && CHARS[look.char]) || CHARS.student;
+      const P = {
         pid: p.pid, name: p.name || "", i, x: G.W / 2 + Math.cos(a) * r, y: G.H / 2 + Math.sin(a) * r,
-        hp: 100, maxHp: 100, down: false, left: false, shieldT: 0, target: 0,
+        look: { char: look.char || "student", skin: look.skin || "", weapon: look.weapon || "keyboard" },
+        hp: C.maxHp || 100, maxHp: C.maxHp || 100, down: false, left: false, shieldT: 0, target: 0,
+        medkitHp: C.medkitHp || MEDKIT_HP, bombR: C.bombR || BOMB_RADIUS, freezeSec: C.freezeSec || FREEZE_SEC, crate: C.crate || CRATE_CHANCE,
         score: 0, combo: 0, maxCombo: 0, kills: 0, keys: 0, hits: 0, errors: 0, switches: 0, downs: 0, revives: 0,
         items: { bomb: 0, freeze: 0, medkit: 0, shield: 0 }, keyStats: {},
       };
+      if (C.item) P.items[C.item] = 1;
+      return P;
     });
     return G;
   }
@@ -241,7 +255,7 @@
     if (how === "bomb" && P) P.score += Math.max(0, e.hp) * 5;
     remove(G, e);
     G.ev.push({ e: "kill", id: e.id, x: e.x, y: e.y, kind: e.kind, bonus: e.maxHp * 5, how: how || "typed", pid: P ? P.pid : "" });
-    if (G.rnd() < CRATE_CHANCE) {
+    if (G.rnd() < (P ? P.crate : CRATE_CHANCE)) {
       const item = ITEMS[Math.floor(G.rnd() * ITEMS.length)];
       const crates = G.ents.filter((c) => c.kind === "crate");
       const clash = G.ents.some((o) => o.word[0] === item[0]);
@@ -307,16 +321,16 @@
     P.items[name]--;
     if (name === "bomb") {
       for (const e of enemies(G)) {
-        if (d2(e, P) > BOMB_RADIUS) continue;
+        if (d2(e, P) > P.bombR) continue;
         if (e.kind === "tank" && e.words.length) {      // a bomb finishes the tank's current word
           const left = e.word.length - Math.max(0, ...Object.values(e.prog));
           e.hp -= Math.min(left, e.hp - 1); nextWord(G, e);
         } else kill(G, e, P, "bomb");
       }
-    } else if (name === "freeze") G.freezeT = FREEZE_SEC;
-    else if (name === "medkit") P.hp = Math.min(P.maxHp, P.hp + MEDKIT_HP);
+    } else if (name === "freeze") G.freezeT = P.freezeSec;
+    else if (name === "medkit") P.hp = Math.min(P.maxHp, P.hp + P.medkitHp);
     else if (name === "shield") P.shieldT = SHIELD_SEC;
-    G.ev.push({ e: "item", pid: P.pid, item: name, x: P.x, y: P.y });
+    G.ev.push({ e: "item", pid: P.pid, item: name, x: P.x, y: P.y, r: P.bombR });
     return true;
   }
 
@@ -334,10 +348,10 @@
   function snapshot(G) {
     const r1 = (v) => Math.round(v * 10) / 10;
     return {
-      remote: true, W: G.W, H: G.H, mode: G.mode, diff: G.diff, n: G.n, t: r1(G.t), kills: G.kills, wave: G.wave,
+      remote: true, W: G.W, H: G.H, mode: G.mode, diff: G.diff, n: G.n, scene: G.scene, t: r1(G.t), kills: G.kills, wave: G.wave,
       toSpawn: G.toSpawn, resting: G.resting, freezeT: r1(G.freezeT), over: G.over,
       players: G.players.map((p) => ({
-        pid: p.pid, name: p.name, i: p.i, x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, down: p.down, left: p.left, shieldT: r1(p.shieldT),
+        pid: p.pid, name: p.name, i: p.i, look: p.look, x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, down: p.down, left: p.left, shieldT: r1(p.shieldT),
         target: p.target, score: p.score, combo: p.combo, maxCombo: p.maxCombo, kills: p.kills, keys: p.keys, hits: p.hits,
         errors: p.errors, downs: p.downs, revives: p.revives, items: p.items,
       })),
@@ -348,7 +362,7 @@
     };
   }
 
-  const API = { DIFF, KIND, ITEMS, BOMB_RADIUS, MAX_PLAYERS, createGame, step, key, useItem, leave, stats, snapshot, mult, ent, player, prog, standing, addEnemy, addCrate, enemies };
+  const API = { DIFF, KIND, ITEMS, CHARS, BOMB_RADIUS, MAX_PLAYERS, createGame, step, key, useItem, leave, stats, snapshot, mult, ent, player, prog, standing, addEnemy, addCrate, enemies };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   else root.TSEngine = API;
 })(typeof window !== "undefined" ? window : globalThis);

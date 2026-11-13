@@ -208,6 +208,26 @@ test("co-op: down, every standing teammate must type the word, then revive; all 
   assert.ok(C.left);
 });
 
+test("characters: what they start with, and nothing else changes", () => {
+  const as = (char, extra) => mk("classic", Object.assign({ players: [{ pid: "p0", name: "", look: { char } }] }, extra));
+  let G = as("student"); assert.deepStrictEqual([G.players[0].maxHp, G.players[0].items], [100, { bomb: 0, freeze: 0, medkit: 0, shield: 0 }]);
+  G = as("medic"); let P = G.players[0];
+  assert.strictEqual(P.items.medkit, 1); P.hp = 10; E.useItem(G, "medkit"); assert.strictEqual(P.hp, 60);
+  G = as("bomber"); P = G.players[0];
+  const far = E.addEnemy(G, "normal", P.x + 350, P.y, ["dog"]);
+  assert.strictEqual(P.items.bomb, 1); E.useItem(G, "bomb"); assert.strictEqual(E.ent(G, far.id), null, "bigger bomb reaches 350 px");
+  G = as("student"); G.players[0].items.bomb = 1; const far2 = E.addEnemy(G, "normal", 640 + 350, 360, ["dog"]); E.useItem(G, "bomb"); assert.ok(E.ent(G, far2.id), "the normal bomb does not");
+  G = as("froster"); E.useItem(G, "freeze"); assert.strictEqual(G.freezeT, 7);
+  G = as("guard"); P = G.players[0]; assert.deepStrictEqual([P.hp, P.maxHp, P.items.shield], [120, 120, 1]);
+  const crates = (char) => { const g = as(char, { seed: 11 }); let n = 0; for (let i = 0; i < 4000; i++) { E.addEnemy(g, "normal", 300, 300, ["dog"]); type(g, "dog"); n += g.ents.length; g.ents.length = 0; } return n; };
+  const a = crates("student"), b = crates("lucky");
+  assert.ok(a > 400 && a < 560 && b > 640 && b < 800, `crate drops per 4000 kills: student ${a}, lucky ${b}`);
+  G = as("guard", { noAbilities: true }); assert.deepStrictEqual([G.players[0].maxHp, G.players[0].items.shield, G.players[0].look.char], [100, 0, "guard"]);
+  G = mk("free", { scene: "snow", players: [{ pid: "p0", name: "A", look: { char: "medic", skin: "medic.pink", weapon: "laser" } }, { pid: "p1", name: "B" }] });
+  const s = JSON.parse(JSON.stringify(E.snapshot(G)));
+  assert.deepStrictEqual([s.scene, s.players[0].look, s.players[1].look], ["snow", { char: "medic", skin: "medic.pink", weapon: "laser" }, { char: "student", skin: "", weapon: "keyboard" }]);
+});
+
 test("snapshot is plain JSON a guest can draw from", () => {
   const G = mk("free", { players: team(2) });
   for (let i = 0; i < 200; i++) E.step(G, 0.05);
