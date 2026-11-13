@@ -155,6 +155,7 @@
     $("#hp-fill").style.width = (P.hp / P.maxHp) * 100 + "%";
     $("#hp-fill").className = P.hp / P.maxHp < 0.3 ? "low" : "";
     $("#hp-num").textContent = P.down ? "倒下" : Math.ceil(P.hp);
+    $("#hp-num").style.color = P.hp / P.maxHp < 0.45 ? "#fff" : "";
     $("#hud-wave").textContent = G.wave ? "第 " + G.wave + " 波" : "準備";
     $("#hud-left").textContent = G.resting ? "下一波即將開始" : "剩餘 " + (G.toSpawn + E.enemies(G).length) + " 隻 · " + fmtTime(G.t);
     $("#hud-score").textContent = P.score.toLocaleString();

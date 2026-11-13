@@ -25,7 +25,7 @@ var DEFAULT_SETTINGS = [
   ['AllowOtherAccounts', 'YES', 'YES = 非學校 Google 帳號可登入（公開榜）'],
   ['LeaderboardSize', '50', '排行榜顯示幾名'],
 ];
-var MODES = ['classic', 'free'], DIFFS = ['easy', 'normal', 'hard'];
+var MODES = ['classic', 'free'], DIFFS = ['easy', 'normal', 'hard'], ALL = 'all';
 var STAFF_CLASS = 'STAFF';
 var TOKEN_HOURS = 12;
 var TZ = 'Asia/Kuala_Lumpur';
@@ -295,7 +295,10 @@ function submitScore_(body) {
   if (at && old >= r.score) return { ok: true, ranked: true, best: false, bestScore: old };
   if (at) sh.getRange(at, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
   var cache = CacheService.getScriptCache();
-  ['class', 'grade', 'school', 'public'].forEach(function (scope) { cache.remove(boardKey_(scope, groupFor_(scope, p, school, teacher), body.mode, body.diff, s.year)); });
+  ['class', 'grade', 'school', 'public'].forEach(function (scope) {
+    var g = groupFor_(scope, p, school, teacher);
+    cache.remove(boardKey_(scope, g, body.mode, body.diff, s.year)); cache.remove(boardKey_(scope, g, ALL, ALL, s.year));
+  });
   return { ok: true, ranked: true, best: true, bestScore: r.score, prev: old };
 }
 
@@ -312,7 +315,9 @@ function boardKey_(scope, group, mode, diff, year) { return ['lb', year, scope, 
 
 function leaderboard_(body) {
   var s = getSettings_(), scope = String(body.scope || 'school');
-  if (['class', 'grade', 'school', 'public'].indexOf(scope) === -1 || MODES.indexOf(body.mode) === -1 || DIFFS.indexOf(body.diff) === -1) return { ok: false, error: 'bad_request' };
+  // mode 'all' = one row per player: their best score in any mode and difficulty
+  if (body.mode === ALL) body.diff = ALL;
+  if (['class', 'grade', 'school', 'public'].indexOf(scope) === -1 || (body.mode !== ALL && (MODES.indexOf(body.mode) === -1 || DIFFS.indexOf(body.diff) === -1))) return { ok: false, error: 'bad_request' };
   var t = body.token ? checkToken_(body.token) : null, email = t ? t.e : '';
   var me = null, school = false, teacher = false;
   if (email) { me = findPlayer_(email).data; school = isSchool_(email, s); teacher = !!teacherMap_()[email]; }
@@ -339,7 +344,7 @@ function leaderboard_(body) {
   var rows = [], mine = null;
   for (var i = 0; i < list.length; i++) {
     var r = list[i], isMe = r[0] === email;
-    var item = { rank: i + 1, name: r[1], cls: r[2], score: r[3], wave: r[4], wpm: r[5], acc: r[6], me: isMe };
+    var item = { rank: i + 1, name: r[1], cls: r[2], score: r[3], wave: r[4], wpm: r[5], acc: r[6], mode: r[7], diff: r[8], me: isMe };
     if (i < s.boardSize) rows.push(item);
     if (isMe) mine = item;
   }
@@ -360,13 +365,13 @@ function classes_(body) {
   return { ok: true, year: s.year, classes: list };
 }
 
-// -> [[email, shown name, class, score, wave, wpm, accuracy], ...] best first
+// -> [[email, shown name, class, score, wave, wpm, accuracy, mode, difficulty], ...] best first
 function buildBoard_(scope, group, mode, diff, s) {
   var ss = SpreadsheetApp.getActiveSpreadsheet(), players = {}, teachers = teacherMap_();
   ss.getSheetByName(SHEET_PLAYERS).getDataRange().getValues().slice(1).forEach(function (r) { var p = rowToPlayer_(r); if (p.email) players[p.email] = p; });
-  var out = [];
+  var out = [], bestAt = {};
   ss.getSheetByName(SHEET_SCORES).getDataRange().getValues().slice(1).forEach(function (r) {
-    if (String(r[0]) !== s.year || r[2] !== mode || r[3] !== diff) return;
+    if (String(r[0]) !== s.year || (mode !== ALL && (r[2] !== mode || r[3] !== diff))) return;
     var email = String(r[1]).toLowerCase(), p = players[email];
     if (!p) return;
     var school = isSchool_(email, s), teacher = !!teachers[email];
@@ -378,7 +383,11 @@ function buildBoard_(scope, group, mode, diff, s) {
       if (scope === 'grade' && (teacher || gradeOf_(cls) !== group)) return;
       if (!teacher && !cls) return; // has not picked this year's class yet
     }
-    out.push([email, school ? p.name : p.nick, cls, Number(r[4]) || 0, Number(r[5]) || 0, Number(r[7]) || 0, Number(r[8]) || 0]);
+    var row = [email, school ? p.name : p.nick, cls, Number(r[4]) || 0, Number(r[5]) || 0, Number(r[7]) || 0, Number(r[8]) || 0, r[2], r[3]];
+    if (mode !== ALL) { out.push(row); return; }
+    var at = bestAt[email];
+    if (at === undefined) { bestAt[email] = out.length; out.push(row); }
+    else if (row[3] > out[at][3]) out[at] = row;
   });
   out.sort(function (a, b) { return b[3] - a[3] || b[5] - a[5]; });
   return out;

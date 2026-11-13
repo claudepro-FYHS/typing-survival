@@ -20,38 +20,37 @@
   /* HUD */
   #hud{position:absolute;inset:0;pointer-events:none;display:none}
   #hud.on{display:block}
-  .box{position:absolute;background:var(--panel);border:1px solid var(--line);border-radius:10px}
-  #hpbox{left:16px;top:14px;width:290px;padding:9px 12px}
-  #hpbox .top{display:flex;justify-content:space-between;font-size:13px;font-weight:700;margin-bottom:5px}
-  #hp-bar{height:12px;background:#2a3a35;border-radius:6px;overflow:hidden}
-  #hp-fill{height:100%;background:var(--hp);border-radius:6px;transition:width .15s}
+  /* small and see-through on purpose: word labels pass underneath */
+  .box{position:absolute;background:rgba(16,24,29,.6);border:1px solid rgba(255,255,255,.12);border-radius:8px}
+  #hpbox{left:10px;top:8px;width:190px;padding:4px}
+  #hp-bar{position:relative;height:18px;background:rgba(42,58,53,.8);border-radius:5px;overflow:hidden}
+  #hp-fill{height:100%;background:var(--hp);border-radius:5px;transition:width .15s}
   #hp-fill.low{background:var(--danger)}
-  #hud-mode{font-size:11.5px;color:var(--muted);margin-top:6px;letter-spacing:.5px}
-  #wavebox{left:50%;top:14px;transform:translateX(-50%);padding:6px 22px 8px;text-align:center;min-width:240px}
-  #hud-wave{font-size:22px;font-weight:800;letter-spacing:2px}
-  #hud-left{font-size:12px;color:var(--muted)}
-  #scorebox{right:16px;top:14px;padding:7px 14px;text-align:right;min-width:180px}
-  #hud-score{font-family:var(--mono);font-size:28px;font-weight:700}
-  #hud-kills{font-size:12px;color:var(--muted)}
-  #hud-combo{position:absolute;right:22px;top:96px;text-align:right;font-weight:800;font-style:italic;color:var(--me);font-size:36px;line-height:1;
-    -webkit-text-stroke:5px var(--ink);paint-order:stroke fill;transition:opacity .2s}
-  #hud-combo small{display:block;font-size:12px;font-style:normal;color:#fff;-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;margin-top:4px}
-  #items{left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:8px;padding:8px 8px 24px}
-  .slot{width:60px;height:60px;border-radius:8px;background:#18232a;border:2px solid #4a5a63;position:relative;display:grid;place-items:center}
-  .slot kbd{position:absolute;left:4px;top:3px;font-family:var(--mono);font-size:11px;font-weight:700;background:#2a3840;border:1px solid #5a6b74;border-radius:3px;padding:0 4px}
-  .slot .q{position:absolute;right:5px;bottom:2px;font-family:var(--mono);font-weight:700;font-size:14px}
-  .slot .lab{position:absolute;left:-6px;right:-6px;bottom:-19px;text-align:center;font-size:11px;color:var(--muted)}
-  .slot i{width:26px;height:26px;border-radius:50%;border:3px solid var(--ink)}
-  .slot.empty{opacity:.4}
-  .slot.active{border-color:var(--me);box-shadow:0 0 14px rgba(255,210,63,.7)}
-  #statbox{right:16px;bottom:14px;padding:8px 14px;display:flex;gap:18px}
-  #statbox div{text-align:center;font-size:11px;color:var(--muted);letter-spacing:1px}
-  #statbox b{display:block;font-family:var(--mono);font-size:22px;color:var(--text)}
-  #helpbox{left:16px;bottom:14px;padding:8px 12px;font-size:11.5px;color:var(--muted);line-height:1.6}
-  #helpbox kbd{font-family:var(--mono);color:#fff;background:#2a3840;border:1px solid #5a6b74;border-radius:3px;padding:0 4px}
-  #helpbox{animation:helpfade 1s 25s forwards}
+  #hp-num{position:absolute;inset:0;display:grid;place-items:center;font-size:12px;font-weight:800;color:#0f1a14;letter-spacing:.5px}
+  #wavebox{left:50%;top:8px;transform:translateX(-50%);padding:3px 14px 4px;text-align:center;white-space:nowrap}
+  #hud-wave{font-size:15px;font-weight:800;letter-spacing:1px}
+  #hud-left{font-size:11.5px;color:#cfd8d4;margin-left:10px}
+  #scorebox{right:10px;top:8px;padding:2px 10px 3px;text-align:right;white-space:nowrap}
+  #hud-score{font-family:var(--mono);font-size:19px;font-weight:700}
+  #hud-kills{font-size:11.5px;color:#cfd8d4;margin-left:8px}
+  #hud-combo{position:absolute;right:14px;top:42px;text-align:right;font-weight:800;font-style:italic;color:var(--me);font-size:26px;line-height:1;
+    -webkit-text-stroke:4px var(--ink);paint-order:stroke fill;transition:opacity .2s}
+  #hud-combo small{display:block;font-size:11px;font-style:normal;color:#fff;-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;margin-top:3px}
+  #items{left:50%;bottom:8px;transform:translateX(-50%);display:flex;gap:5px;padding:4px}
+  .slot{width:38px;height:38px;border-radius:6px;background:rgba(24,35,42,.75);border:1.5px solid #4a5a63;position:relative;display:grid;place-items:center}
+  .slot kbd{position:absolute;left:2px;top:1px;font-family:var(--mono);font-size:10px;font-weight:700;color:#cfd8d4}
+  .slot .q{position:absolute;right:3px;bottom:0;font-family:var(--mono);font-weight:700;font-size:12px}
+  .slot .lab{display:none}
+  .slot i{width:16px;height:16px;border-radius:50%;border:2px solid var(--ink)}
+  .slot.empty{opacity:.35}
+  .slot.active{border-color:var(--me);box-shadow:0 0 10px rgba(255,210,63,.7)}
+  #statbox{right:10px;bottom:8px;padding:3px 10px;display:flex;gap:12px;font-size:11px;color:#cfd8d4;white-space:nowrap}
+  #statbox b{font-family:var(--mono);font-size:15px;color:var(--text);margin-right:3px}
+  #helpbox{left:10px;bottom:8px;padding:4px 10px;font-size:11px;color:#cfd8d4;white-space:nowrap}
+  #helpbox kbd{font-family:var(--mono);color:#fff}
+  #helpbox{animation:helpfade 1s 20s forwards}
   @keyframes helpfade{to{opacity:0}}
-  #hint{position:absolute;left:50%;top:92px;transform:translateX(-50%);background:var(--danger);color:#fff;font-weight:700;font-size:14px;padding:6px 14px;border-radius:16px;opacity:0;transition:opacity .2s}
+  #hint{position:absolute;left:50%;top:44px;transform:translateX(-50%);background:var(--danger);color:#fff;font-weight:700;font-size:13px;padding:4px 12px;border-radius:14px;opacity:0;transition:opacity .2s}
   #hint.on{opacity:1}
 
   /* screens */
@@ -106,17 +105,20 @@
   .lb-row b small{font-weight:400;color:var(--muted);margin-left:8px;font-family:var(--mono)}
   .lb-row span{text-align:right;color:var(--muted);font-size:13px}
   .lb-row .sc{font-family:var(--mono);font-weight:700;font-size:16px;color:var(--text)}
+  .lb-all .lb-row{grid-template-columns:44px 1fr 118px 110px 84px 90px 56px}
+  .lb-row em{font-style:normal;font-size:12px;text-align:center;padding:2px 0;border-radius:10px;background:#263743;color:#cfd8d4}
+  #lb-diff.off{visibility:hidden}
   .lb-row.me{background:rgba(255,210,63,.16);outline:1.5px solid var(--me)}
   #lb-pick{display:grid;grid-template-columns:60px 240px;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:var(--muted)}
   #lb-pick select{padding:7px 10px;font-size:15px}
   #lb-foot{font-size:12.5px;color:var(--muted);margin-top:10px;text-align:center;min-height:18px}
-  #teambox{position:absolute;left:16px;top:108px;width:210px;display:none}
+  #teambox{position:absolute;left:10px;top:40px;width:150px;display:none}
   #hud.multi #teambox{display:block}
-  .mate{display:grid;grid-template-columns:12px 1fr auto;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 9px;margin-bottom:5px;font-size:12.5px}
-  .mate i{width:10px;height:10px;border-radius:50%;border:2px solid var(--ink)}
+  .mate{display:grid;grid-template-columns:10px 1fr auto;align-items:center;gap:5px;background:rgba(16,24,29,.6);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:2px 7px 3px;margin-bottom:3px;font-size:11.5px}
+  .mate i{width:8px;height:8px;border-radius:50%;border:2px solid var(--ink)}
   .mate b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .mate span{font-family:var(--mono);color:var(--muted);font-size:12px}
-  .mate .mb{grid-column:1/4;height:4px;background:#2a3a35;border-radius:2px;overflow:hidden}
+  .mate span{font-family:var(--mono);color:#cfd8d4;font-size:11px}
+  .mate .mb{grid-column:1/4;height:3px;background:#2a3a35;border-radius:2px;overflow:hidden}
   .mate .mb u{display:block;height:100%;background:var(--hp)}
   .mate.down{border-color:#ff8f8f}.mate.down span{color:#ff8f8f;font-family:var(--ui)}
   .mate.left{opacity:.45}
@@ -151,25 +153,21 @@
   <canvas id="cv" width="1280" height="720"></canvas>
 
   <div id="hud">
-    <div class="box" id="hpbox">
-      <div class="top"><span>生命</span><span id="hp-num">100</span></div>
-      <div id="hp-bar"><div id="hp-fill"></div></div>
-      <div id="hud-mode"></div>
-    </div>
+    <div class="box" id="hpbox"><div id="hp-bar"><div id="hp-fill"></div><span id="hp-num">100</span></div></div>
     <div id="teambox"></div>
     <div id="waiting">等房主的畫面…</div>
-    <div class="box" id="wavebox"><div id="hud-wave"></div><div id="hud-left"></div></div>
-    <div class="box" id="scorebox"><div id="hud-score">0</div><div id="hud-kills"></div></div>
+    <div class="box" id="wavebox"><b id="hud-wave"></b><span id="hud-left"></span></div>
+    <div class="box" id="scorebox"><b id="hud-score">0</b><span id="hud-kills"></span></div>
     <div id="hud-combo">x0<small id="hud-mult"></small></div>
     <div id="hint"></div>
-    <div class="box" id="helpbox">打字射擊 · <kbd>1</kbd>–<kbd>4</kbd> 用道具<br><kbd>Esc</kbd> 暫停</div>
+    <div class="box" id="helpbox"><span id="hud-mode"></span> · <kbd>1</kbd>–<kbd>4</kbd> 道具 · <kbd>Esc</kbd> 選單</div>
     <div class="box" id="items">
       <div class="slot" id="slot-bomb"><kbd>1</kbd><i style="background:#ff8a3d"></i><span class="q">0</span><span class="lab">炸彈</span></div>
       <div class="slot" id="slot-freeze"><kbd>2</kbd><i style="background:#7fd8ff"></i><span class="q">0</span><span class="lab">冰凍</span></div>
       <div class="slot" id="slot-medkit"><kbd>3</kbd><i style="background:#ff6b81"></i><span class="q">0</span><span class="lab">醫療包</span></div>
       <div class="slot" id="slot-shield"><kbd>4</kbd><i style="background:#8be28b"></i><span class="q">0</span><span class="lab">護盾</span></div>
     </div>
-    <div class="box" id="statbox"><div><b id="hud-wpm">0</b>WPM</div><div><b id="hud-acc">100%</b>準確率</div></div>
+    <div class="box" id="statbox"><span><b id="hud-wpm">0</b>WPM</span><span><b id="hud-acc">100%</b>準確</span></div>
   </div>
 
   <div class="screen" id="scr-menu">
@@ -249,14 +247,14 @@
     </div>
   </div>
 </div>
-<script src="config.js?v=0.3.2"></script>
-<script src="words.js?v=0.3.2"></script>
-<script src="lib/peerjs.min.js?v=0.3.2"></script>
-<script src="js/engine.js?v=0.3.2"></script>
-<script src="js/render.js?v=0.3.2"></script>
-<script src="js/net.js?v=0.3.2"></script>
-<script src="js/ui.js?v=0.3.2"></script>
-<script src="js/room.js?v=0.3.2"></script>
-<script src="js/account.js?v=0.3.2"></script>
+<script src="config.js?v=0.3.3"></script>
+<script src="words.js?v=0.3.3"></script>
+<script src="lib/peerjs.min.js?v=0.3.3"></script>
+<script src="js/engine.js?v=0.3.3"></script>
+<script src="js/render.js?v=0.3.3"></script>
+<script src="js/net.js?v=0.3.3"></script>
+<script src="js/ui.js?v=0.3.3"></script>
+<script src="js/room.js?v=0.3.3"></script>
+<script src="js/account.js?v=0.3.3"></script>
 </body>
 </html>

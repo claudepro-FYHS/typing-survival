@@ -16,8 +16,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       if (action === "login") return { ok: true, token: "tok", email: "t@foonyew.edu.my", player };
       if (action === "me") return { ok: false, error: "session_expired" };
       if (action === "classes") return { ok: true, year: "2026", classes: [{ cls: "J203", n: 31 }, { cls: "J207", n: 28 }] };
-      if (action === "leaderboard") return { ok: true, scope: b.scope, group: b.group || b.scope, year: "2026", total: 1, me: null,
-        rows: [{ rank: 1, name: "學生 " + (b.group || b.scope), cls: b.group && b.group.length > 2 ? b.group : "J203", score: 4200, wave: 5, wpm: 38, acc: 96, me: false }] };
+      if (action === "leaderboard") return { ok: true, scope: b.scope, group: b.group || b.scope, year: "2026", total: 2, me: null,
+        rows: [{ rank: 1, name: "學生 " + (b.group || b.scope), cls: b.group && b.group.length > 2 ? b.group : "J203", score: 4200, wave: 5, wpm: 38, acc: 96, mode: "classic", diff: "hard", me: false },
+               { rank: 2, name: "陳小華", cls: "J203", score: 3100, wave: 4, wpm: 29, acc: 91, mode: "free", diff: "easy", me: false }] };
       return { ok: false, error: "unknown_action" };
     };
   });
@@ -35,6 +36,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await page.selectOption("#lb-group", "J207");
     await page.waitForFunction(() => /學生 J207/.test(document.querySelector("#lb-body").textContent));
     assert.ok(/J207/.test(await page.textContent("#lb-foot")));
+    // default view is "全部": each row says which mode and difficulty the best score came from
+    assert.strictEqual(await page.textContent("#lb-mode button.sel"), "全部");
+    assert.deepStrictEqual(await page.$$eval("#lb-body em", (e) => e.map((x) => x.textContent)), ["傳統 · 困難", "自由 · 簡單"]);
+    assert.ok(await page.evaluate("getComputedStyle(document.querySelector('#lb-diff')).visibility === 'hidden'"));
     await page.screenshot({ path: path.join(__dirname, "shots", "teacher-board.png") });
     await page.click('#lb-scope button[data-v="grade"]');
     await page.waitForFunction(() => document.querySelectorAll("#lb-group option").length === 6);
@@ -43,8 +48,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await page.click('#lb-scope button[data-v="school"]');
     await sleep(200);
     assert.ok(await page.isHidden("#lb-pick"), "no picker on the school board");
-    const last = await page.evaluate("window.__calls.filter(c => c.action === 'leaderboard').map(c => c.scope + ':' + (c.group || ''))");
-    assert.deepStrictEqual(last, ["school:", "class:J203", "class:J207", "grade:J1", "grade:S1", "school:"]);
+    // one mode: no tag column, difficulty buttons back; going back to a board already seen asks the server nothing
+    await page.click('#lb-mode button[data-v="free"]');
+    await page.waitForFunction(() => !document.querySelector("#lb-body em") && document.querySelector("#lb-body .lb-row"));
+    await page.click('#lb-mode button[data-v="all"]');
+    await page.waitForFunction(() => document.querySelectorAll("#lb-body em").length === 2);
+    const last = await page.evaluate("window.__calls.filter(c => c.action === 'leaderboard').map(c => [c.scope, c.group || '', c.mode, c.diff].join(':'))");
+    assert.deepStrictEqual(last, ["school::all:all", "class:J203:all:all", "class:J207:all:all", "grade:J1:all:all", "grade:S1:all:all", "school::free:normal"]);
     assert.deepStrictEqual(errors, []);
     console.log("TEACHER BOARD OK");
   } catch (e) { console.log("FAILED: " + e.message, errors); process.exitCode = 1; }

@@ -16,7 +16,7 @@
   };
   const msg = (r) => ERR[r && r.error] || ERR.server;
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const B = { scope: "school", mode: "free", diff: "normal", req: 0 };
+  const B = { scope: "school", mode: "all", diff: "normal", req: 0, cache: {} };
 
   function label(p) {
     if (p.teacher) return "老師 · " + p.name;
@@ -116,14 +116,17 @@
     el.onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; B[key] = b.dataset.v; renderBoard(); };
   }
   function openBoard() {
-    B.mode = UI.S.prefs.mode; B.diff = UI.S.prefs.diff; B.classes = null;
+    B.mode = "all"; B.diff = UI.S.prefs.diff; B.classes = null;
     const sc = scopesFor(); if (sc.indexOf(B.scope) === -1) B.scope = sc[0];
     UI.show("board"); renderBoard();
   }
   async function renderBoard() {
     const teacher = !!(N.token && N.player && N.player.teacher), names = teacher ? T_SCOPES : SCOPES;
     const sc = scopesFor(), map = {}; sc.forEach((k) => (map[k] = names[k]));
-    segB($("#lb-scope"), map, "scope"); segB($("#lb-mode"), UI.MODES, "mode"); segB($("#lb-diff"), UI.DIFFS, "diff");
+    // "全部" = everyone's best in any mode and difficulty, so a class can be read on one screen
+    const all = B.mode === "all";
+    segB($("#lb-scope"), map, "scope"); segB($("#lb-mode"), Object.assign({ all: "全部" }, UI.MODES), "mode"); segB($("#lb-diff"), UI.DIFFS, "diff");
+    $("#lb-diff").classList.toggle("off", all); $("#lb-body").classList.toggle("lb-all", all);
     const body = $("#lb-body"), foot = $("#lb-foot"), id = ++B.req;
     body.innerHTML = `<div class="lb-msg">載入中…</div>`; foot.textContent = "";
     let group = "";
@@ -144,13 +147,17 @@
       pick.innerHTML = `<label>${B.scope === "grade" ? "年段" : "班級"}</label><select id="lb-group">${opts.map((o) => `<option value="${esc(o[0])}"${o[0] === group ? " selected" : ""}>${esc(o[1])}</option>`).join("")}</select>`;
       $("#lb-group").onchange = (ev) => { B[key] = ev.target.value; renderBoard(); };
     }
-    const r = await N.leaderboard(B.scope, B.mode, B.diff, group);
+    // answers are kept for a minute: switching back and forth should not wait for the server again
+    const ck = [B.scope, group, B.mode, all ? "" : B.diff].join("|"), hit = B.cache[ck];
+    let r = hit && Date.now() - hit.t < 60000 ? hit.r : null;
+    if (!r) { r = await N.leaderboard(B.scope, B.mode, all ? "all" : B.diff, group); if (r && r.ok) B.cache[ck] = { t: Date.now(), r }; }
     if (id !== B.req) return;
     if (!r || !r.ok) { body.innerHTML = `<div class="lb-msg">${esc(msg(r))}</div>`; return; }
     if (!r.rows.length) { body.innerHTML = `<div class="lb-msg">還沒有人上榜，來當第一名吧。</div>`; }
     else {
       const showCls = B.scope === "grade" || B.scope === "school";
       body.innerHTML = r.rows.map((x) => `<div class="lb-row${x.me ? " me" : ""}"><i>${x.rank}</i><b>${esc(x.name)}${showCls && x.cls ? `<small>${esc(x.cls)}</small>` : ""}</b>` +
+        (all ? `<em>${esc((UI.MODES[x.mode] || "").replace("模式", ""))} · ${esc(UI.DIFFS[x.diff] || "")}</em>` : "") +
         `<span class="sc">${Number(x.score).toLocaleString()}</span><span>第 ${x.wave} 波</span><span>${Math.round(x.wpm)} WPM</span><span>${Math.round(x.acc)}%</span></div>`).join("");
     }
     const title = B.scope === "class" || B.scope === "grade" ? (B.scope === "grade" ? (GRADE_NAME[r.group] || r.group) : r.group) : SCOPES[B.scope];
@@ -163,7 +170,7 @@
     if (!N.enabled()) { el.textContent = ""; return; }
     if (!N.token) { el.textContent = "沒有登入，成績不會上排行榜。"; return; }
     if (!N.ready()) { el.textContent = "還沒填寫資料，成績不會上排行榜。"; return; }
-    el.textContent = "成績上傳中…";
+    el.textContent = "成績上傳中…"; B.cache = {};
     const r = await N.submitScore({ mode: G.mode, diff: G.diff, score: st.score, wave: st.wave, kills: st.kills, hits: st.hits, keys: st.keys,
       time: Math.round(st.time * 10) / 10, maxCombo: st.maxCombo, input: "kb" });
     if (!r || !r.ok) el.textContent = r && r.error === "rejected" ? "成績沒有被接受。" : r && r.error === "session_expired" ? "登入已過期，這次成績沒有上傳。" : "上傳失敗，這次成績只存在這台電腦。";

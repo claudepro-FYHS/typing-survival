@@ -163,7 +163,7 @@
       const a = out[i], b = out[j];
       if (a.x < b.x + b.w + 4 && b.x < a.x + a.w + 4 && a.y < b.y + b.h + 3 && b.y < a.y + a.h + 3) a.y = b.y - a.h - 3;
     }
-    for (const L of out) { L.x = Math.max(6, Math.min(W - L.w - 6, L.x)); L.y = Math.max(74, Math.min(H - L.h - 6, L.y)); }
+    for (const L of out) { L.x = Math.max(6, Math.min(W - L.w - 6, L.x)); L.y = Math.max(40, Math.min(H - L.h - 6, L.y)); }
     return out;
   }
   function drawLabel(c, G, L, t, me, myTarget) {

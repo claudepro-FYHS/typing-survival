@@ -98,6 +98,16 @@ test("leaderboards: class / grade / school / public", () => {
   assert.ok(!JSON.stringify(board(A.token, "school")).includes("@"), "no email addresses leave the server");
   assert.strictEqual(board("", "school").error, "school_only", "real names only for school accounts");
   assert.strictEqual(board(P.token, "grade").error, "school_only");
+  // "all": one row per player, their best in any mode and difficulty, and which one it was
+  post(run({ token: A.token, mode: "classic", diff: "hard", score: 9000, hits: 900, keys: 950, time: 400, wave: 9, kills: 120 }));
+  r = board(A.token, "class", { mode: "all" });
+  assert.deepStrictEqual(r.rows.map((x) => [x.name, x.score, x.mode, x.diff]), [["王小明", 9000, "classic", "hard"]]);
+  r = board(A.token, "grade", { mode: "all", diff: "easy" });
+  assert.deepStrictEqual(r.rows.map((x) => [x.name, x.score, x.mode, x.diff]), [["王小明", 9000, "classic", "hard"], ["李美", 5000, "free", "normal"]]);
+  assert.strictEqual(board(A.token, "class").rows[0].score, 4000, "the per-mode board is unchanged");
+  assert.strictEqual(board(A.token, "class", { mode: "nope" }).error, "bad_request");
+  post(run({ token: A.token, mode: "free", diff: "easy", score: 9500, hits: 900, keys: 950, time: 400, wave: 9, kills: 120 }));
+  assert.deepStrictEqual(board(A.token, "class", { mode: "all" }).rows.map((x) => [x.score, x.diff]), [[9500, "easy"]], "a new best shows at once");
   // teachers have no class: they pick any class or grade to look at
   assert.strictEqual(board(T.token, "class").error, "bad_group");
   assert.strictEqual(board(T.token, "class", { group: "J2; DROP" }).error, "bad_group");
