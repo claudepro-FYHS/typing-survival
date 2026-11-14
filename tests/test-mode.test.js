@@ -173,6 +173,8 @@ test("weak keys: every test adds to one row per student; the teacher sees the cl
   const k = post({ action: "tKeys", token: W, cls: "J2" });
   assert.deepStrictEqual([k.students, k.keys.p, k.keys.z], [2, [35, 15, 16000, 35], [3, 0, 600, 3]]);
   assert.strictEqual(post({ action: "tKeys", token: W, cls: "J203" }).students, 1);
+  post({ action: "addKeys", token: B, stats: { z: { h: 7, m: 1, ms: 900, n: 7 } } });      // weak-key practice
+  assert.deepStrictEqual(plain(post({ action: "myKeys", token: B }).keys.z), [10, 1, 1500, 10]);
   assert.strictEqual(post({ action: "tKeys", token: A, cls: "J2" }).error, "not_teacher");
   post({ action: "tUpdate", token: W, code: c.test.code, status: "closed" }); fresh();
 });

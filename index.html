@@ -147,7 +147,7 @@
   #mp-msg.bad{color:#ffb38a}
   .go:disabled{opacity:.4;cursor:default;filter:none}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .two:has(#btn-shop[style*="none"]){grid-template-columns:1fr}
+  .two:has(#btn-shop[style*="none"]),.two:has(#btn-board[style*="none"]),.two:has(#ts-teacher[style*="none"]),.two:has(#ts-keys[style*="none"]){grid-template-columns:1fr}
   .coin{display:inline-block;width:13px;height:13px;border-radius:50%;background:#ffc93c;border:2px solid #a87400;vertical-align:-1px;margin-right:5px}
   #acct .coins{font-family:var(--mono);font-weight:700;font-size:15px;color:#ffe08a;margin-right:4px}
   #gift-tip{display:none;margin-top:8px;padding:8px 12px;border-radius:8px;background:#3a3410;border:1px solid #c9a227;color:#ffe9a3;font-size:13.5px;text-align:center}
@@ -170,6 +170,60 @@
   .sb.buy{background:var(--me);color:#241c00}.sb.sure{background:#ff8a3d;color:#241000}.sb.use{background:#3d7bd9}
   .sb.on{background:none;color:var(--me);cursor:default}.sb.lock{background:#222e35;color:#8b9a94;cursor:default;font-weight:400;font-size:12px}
   #shop-msg{min-height:20px;text-align:center;font-size:13px;color:#ffe9a3;margin-top:8px}
+  /* typing test */
+  #hud.test #hpbox,#hud.test #items,#hud.test #hud-combo,#hud.test #scorebox,#hud.test #helpbox,#hud.test #teambox{display:none}
+  #hud-left.soon{color:#ffb38a;font-weight:700}
+  #res-score small{font-size:20px;margin-left:8px;color:var(--muted);font-family:var(--ui)}
+  #btn-test.alert{background:#3a3410;border:1.5px solid #c9a227;color:#ffe9a3}
+  .ts-box{margin-top:14px;padding:12px 14px;background:#1c2931;border-radius:10px}
+  .ts-box h2{font-size:15px;letter-spacing:2px;margin-bottom:8px}
+  .ts-box p{font-size:12.5px;color:var(--muted);line-height:1.6}
+  .ts-box p b{color:#ffe9a3}
+  .ts-row{display:grid;grid-template-columns:1fr 150px;gap:8px;margin-top:8px}
+  .ts-row .go{margin-top:0;font-size:16px;letter-spacing:2px;padding:10px}
+  #ts-code{text-transform:uppercase;font-family:var(--mono);font-size:20px;letter-spacing:4px;text-align:center}
+  #ts-self{display:flex;gap:8px;margin-top:8px}
+  #ts-self button{flex:1;padding:10px 4px;border-radius:8px;background:#2c3f4a;font-weight:700;font-size:16px}
+  #ts-self button:hover{background:#375060}
+  #ts-self small{display:block;font-size:11px;font-weight:400;color:var(--muted);margin-top:2px}
+  #ts-msg{min-height:20px;text-align:center;font-size:13.5px;color:#ffb38a;margin-top:10px}
+  .kb{margin:14px auto 0;width:max-content}
+  .kb-row{display:flex;gap:5px;margin-bottom:5px}
+  .key{position:relative;width:46px;height:46px;border-radius:7px;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:17px;background:#263743;border:1.5px solid #3a4d58}
+  .key small{position:absolute;left:4px;top:1px;font-size:10px;color:#9fb0aa;font-weight:400}
+  .key u{position:absolute;right:3px;bottom:1px;font-size:9.5px;text-decoration:none;font-weight:400}
+  .key.ok{background:#1f4a33;border-color:#2f7a52}.key.warn{background:#6b5a14;border-color:#c9a227}.key.bad{background:#7a2a26;border-color:#ff5a4d}.key.none{opacity:.45}
+  .kb-legend{display:flex;gap:6px;align-items:center;justify-content:center;font-size:12px;color:var(--muted);margin-top:8px}
+  .kb-legend .key{width:16px;height:16px;border-radius:4px;margin-left:12px}
+  .kb-tip{font-size:13.5px;color:var(--muted);line-height:1.8;margin-top:12px;text-align:center}
+  .kb-tip b{color:var(--text);font-family:var(--mono);font-size:15px}
+  .card.console{width:1120px;padding:16px 22px}
+  #tc-body{height:486px;overflow-y:auto;margin-top:10px}
+  .tc-new{display:grid;grid-template-columns:2fr 2.2fr .6fr .6fr 1fr 130px;gap:8px;align-items:end}
+  .tc-new.one{grid-template-columns:300px 130px}
+  .tc-new label{font-size:12px;color:var(--muted)}
+  .tc-new input,.tc-new select{margin-top:3px;padding:8px 9px;font-size:15px}
+  .tc-new .go{margin-top:0;padding:9px;font-size:15px;letter-spacing:1px}
+  #tc-msg{min-height:18px;font-size:13px;color:#ffb38a;margin-top:6px}
+  .tc-test{display:grid;grid-template-columns:120px 1.3fr 1.2fr 1fr 70px 70px;gap:10px;align-items:center;padding:8px 12px;background:#1c2931;border-radius:8px;margin-top:6px;font-size:13.5px}
+  .tc-test.closed{opacity:.6}
+  .code{font-family:var(--mono);font-size:20px;color:var(--me);letter-spacing:2px;user-select:text}
+  .code.big{display:block;font-size:46px;line-height:1.1;letter-spacing:6px}
+  .tc-test em,.tc-meta em{font-style:normal;font-size:12px;padding:2px 8px;border-radius:10px;background:#1f4a33;color:#9be8b5;text-align:center}
+  .tc-test.closed em,.tc-meta em.closed{background:#34454f;color:#cfd8d4}
+  .tc-test button,.tc-btns button,.ops button{padding:6px 10px;border-radius:7px;background:#2c3f4a;font-weight:700;font-size:13px}
+  .tc-head{display:grid;grid-template-columns:auto 1fr auto;gap:22px;align-items:center;padding:8px 14px;background:#1c2931;border-radius:10px}
+  .tc-head span{font-size:12px;color:var(--muted)}
+  .tc-meta{font-size:14px;line-height:1.9}
+  .tc-btns{display:grid;gap:5px}
+  .tc-table{margin-top:8px}
+  .tc-row{display:grid;grid-template-columns:70px 44px 1.1fr 1.5fr repeat(var(--n,2),70px) 64px 150px;gap:8px;align-items:center;padding:5px 10px;border-radius:6px;font-size:13.5px}
+  .tc-row:nth-child(even){background:rgba(255,255,255,.04)}
+  .tc-row.th{font-size:12px;color:var(--muted)}
+  .tc-row small{display:block;font-size:10.5px;color:#ffb38a}
+  .tc-row i{font-style:normal}.tc-row i.run{color:#9be8b5}.tc-row i.bad{color:#ff8f8f}
+  .tc-row .best{font-family:var(--mono);font-weight:700;font-size:17px;color:var(--me)}
+  .ops{display:flex;gap:5px;justify-content:flex-end}.ops button{font-size:12px;padding:4px 8px}
 </style>
 </head>
 <body>
@@ -204,7 +258,7 @@
       <div class="row" id="row-grade"><label>年段</label><div class="seg" id="seg-grade"></div><div class="desc" id="bank-desc"></div></div>
       <button class="go" id="btn-start">開始</button>
       <div class="two"><button class="ghost" id="btn-multi">多人連線（2–6 人）</button><button class="ghost" id="btn-shop" style="display:none">商店 · 角色</button></div>
-      <button class="ghost" id="btn-board" style="display:none">排行榜</button>
+      <div class="two"><button class="ghost" id="btn-test">打字檢定</button><button class="ghost" id="btn-board" style="display:none">排行榜</button></div>
       <div id="best"></div>
       <div class="how">喪屍頭上有英文單字，把字打出來就能擊倒它。打箱子上的字可以拿道具。</div>
     </div>
@@ -282,17 +336,54 @@
       <div id="mp-msg"></div>
     </div>
   </div>
+  <div class="screen" id="scr-test">
+    <div class="card">
+      <h1 style="font-size:30px">打字檢定</h1>
+      <div class="ts-box" id="ts-graded">
+        <h2>老師的測驗</h2>
+        <p id="ts-info"></p>
+        <div class="ts-row"><input id="ts-code" maxlength="20" placeholder="老師公布的代號" autocomplete="off" spellcheck="false"><button class="go" id="btn-ts-go">開始測驗</button></div>
+      </div>
+      <div class="ts-box">
+        <h2>自我檢定</h2>
+        <p id="ts-self-tip"></p>
+        <div id="ts-self"></div>
+      </div>
+      <div id="ts-msg"></div>
+      <div class="two"><button class="ghost" id="ts-keys">我的弱點鍵 · 練習</button><button class="ghost" id="ts-teacher">老師後台</button></div>
+      <button class="ghost" id="btn-ts-back">回主畫面</button>
+    </div>
+  </div>
+
+  <div class="screen" id="scr-keys">
+    <div class="card wide">
+      <h1 style="font-size:28px" id="keys-title">我的弱點鍵</h1>
+      <div id="keys-pick"></div>
+      <div id="keys-body"></div>
+      <button class="go" id="btn-keys-practice" style="font-size:17px;letter-spacing:1px"></button>
+      <button class="ghost" id="btn-keys-back">返回</button>
+    </div>
+  </div>
+
+  <div class="screen" id="scr-teacher">
+    <div class="card console">
+      <div class="shop-top"><h1 style="font-size:24px;text-align:left">老師後台</h1><div class="seg" id="tc-tabs" style="width:300px"></div><button class="ghost" id="btn-tc-back" style="width:120px;margin:0;padding:8px">返回</button></div>
+      <div id="tc-body"></div>
+    </div>
+  </div>
 </div>
-<script src="config.js?v=0.4.0"></script>
-<script src="words.js?v=0.4.0"></script>
-<script src="shop.js?v=0.4.0"></script>
-<script src="lib/peerjs.min.js?v=0.4.0"></script>
-<script src="js/engine.js?v=0.4.0"></script>
-<script src="js/render.js?v=0.4.0"></script>
-<script src="js/net.js?v=0.4.0"></script>
-<script src="js/ui.js?v=0.4.0"></script>
-<script src="js/room.js?v=0.4.0"></script>
-<script src="js/shopui.js?v=0.4.0"></script>
-<script src="js/account.js?v=0.4.0"></script>
+<script src="config.js?v=0.5.0"></script>
+<script src="words.js?v=0.5.0"></script>
+<script src="shop.js?v=0.5.0"></script>
+<script src="lines.js?v=0.5.0"></script>
+<script src="lib/peerjs.min.js?v=0.5.0"></script>
+<script src="js/engine.js?v=0.5.0"></script>
+<script src="js/render.js?v=0.5.0"></script>
+<script src="js/net.js?v=0.5.0"></script>
+<script src="js/ui.js?v=0.5.0"></script>
+<script src="js/room.js?v=0.5.0"></script>
+<script src="js/shopui.js?v=0.5.0"></script>
+<script src="js/testui.js?v=0.5.0"></script>
+<script src="js/account.js?v=0.5.0"></script>
 </body>
 </html>

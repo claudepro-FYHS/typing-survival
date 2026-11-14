@@ -252,9 +252,10 @@
 
   /* ---------- word labels ---------- */
   function layoutLabels(c, G, me) {
-    const out = [];
+    const out = [], Me = E.player(G, me) || G.players[0];
     for (const e of G.ents) {
-      const big = e.kind === "tank", fs = big ? 23 : 20, bar = big || (G.n > 1 && e.kind !== "crate" && e.kind !== "down" && e.hp < e.maxHp);
+      const line = G.test && G.test.kind === "line", active = line && Me && Me.target === e.id;      // line test: the line being typed is big, the waiting ones small
+      const big = e.kind === "tank", fs = line ? (active ? 24 : 15) : big ? 23 : 20, bar = !G.test && (big || (G.n > 1 && e.kind !== "crate" && e.kind !== "down" && e.hp < e.maxHp));
       c.font = `700 ${fs}px ${MONO}`;
       const cw = c.measureText("m").width + 1.5, w = cw * e.word.length + 18, h = fs + (bar ? 16 : 10);
       out.push({ e, fs, cw, w, h, bar, x: e.x - w / 2, y: e.y - e.r - h - (e.kind === "crate" ? 12 : e.kind === "down" ? 16 : 10) });
@@ -284,6 +285,7 @@
       const x = L.x + 9 + i * L.cw, y = L.y + 5;
       c.fillStyle = mine ? "#f0b6b6" : i < p ? (isT || doneByMe ? "#ffd23f" : "#a8892b") : crate ? "#ffe9a3" : "#fff";
       c.fillText(e.word[i], x, y);
+      if (e.word[i] === " " && isT && i >= p) { c.fillStyle = "rgba(255,255,255,.28)"; c.fillRect(x + L.cw / 2 - 1.5, y + L.fs * 0.55, 3, 3); }   // show where the spaces are
       if (i === p && (isT || held)) { c.fillStyle = isT ? "#ffd23f" : "#d6ae36"; c.fillRect(x, y + L.fs + 1, L.cw - 2, 2.5); }
     }
     if (L.bar) {

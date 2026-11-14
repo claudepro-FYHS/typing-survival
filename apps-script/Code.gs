@@ -132,6 +132,7 @@ function doPost(e) {
       case 'selfStart': return json_(selfStart_(body));
       case 'selfFinish': return json_(withLock_(function () { return selfFinish_(body); }));
       case 'myKeys': return json_(myKeys_(body));
+      case 'addKeys': return json_(withLock_(function () { return addKeys_(body); }));
       case 'tTests': return json_(tTests_(body));
       case 'tCreate': return json_(withLock_(function () { return tCreate_(body); }));
       case 'tUpdate': return json_(withLock_(function () { return tUpdate_(body); }));
@@ -907,6 +908,14 @@ function mergeKeys_(p, stats) {
   for (k in add) { var c = cur[k] || [0, 0, 0, 0]; cur[k] = [c[0] + add[k][0], c[1] + add[k][1], c[2] + add[k][2], c[3] + add[k][3]]; }
   var row = [p.email, p.cls, p.seat || '', p.name, new Date(), JSON.stringify(cur)];
   if (at.row) at.sh.getRange(at.row, 1, 1, row.length).setValues([row]); else at.sh.appendRow(row);
+}
+// weak-key practice: nothing is scored, only the per-key numbers are added
+function addKeys_(body) {
+  var t = checkToken_(body.token);
+  if (!t) return { ok: false, error: 'session_expired' };
+  var p = findPlayer_(t.e).data;
+  if (p) mergeKeys_(p, body.stats);
+  return { ok: true };
 }
 function myKeys_(body) {
   var t = checkToken_(body.token);

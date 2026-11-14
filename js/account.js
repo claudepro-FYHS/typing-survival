@@ -29,6 +29,9 @@
   /* ---------- account bar on the menu ---------- */
   function renderAcct() {
     const el = $("#acct");
+    const tb = $("#btn-test");
+    tb.classList.toggle("alert", !!(N.enabled() && N.config && N.config.testActive && N.token && N.player && N.player.cls && !N.player.teacher));
+    tb.textContent = N.token && N.player && N.player.teacher ? "打字檢定 · 老師後台" : tb.classList.contains("alert") ? "打字檢定 · 有測驗開放中" : "打字檢定";
     if (!N.enabled()) { el.style.display = "none"; $("#btn-board").style.display = "none"; $("#btn-shop").style.display = "none"; return; }
     el.style.display = ""; $("#btn-board").style.display = ""; $("#btn-shop").style.display = "";
     if (N.token && N.player) {
@@ -123,7 +126,7 @@
     el.onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; B[key] = b.dataset.v; renderBoard(); };
   }
   function openBoard() {
-    B.mode = "all"; B.diff = UI.S.prefs.diff; B.classes = null;
+    B.mode = "all"; B.diff = UI.S.prefs.diff; B.classes = null; B.cache = {};
     const sc = scopesFor(); if (sc.indexOf(B.scope) === -1) B.scope = sc[0];
     UI.show("board"); renderBoard();
   }
@@ -131,9 +134,9 @@
     const teacher = !!(N.token && N.player && N.player.teacher), names = teacher ? T_SCOPES : SCOPES;
     const sc = scopesFor(), map = {}; sc.forEach((k) => (map[k] = names[k]));
     // "全部" = everyone's best in any mode and difficulty, so a class can be read on one screen
-    const all = B.mode === "all";
-    segB($("#lb-scope"), map, "scope"); segB($("#lb-mode"), Object.assign({ all: "全部" }, UI.MODES), "mode"); segB($("#lb-diff"), UI.DIFFS, "diff");
-    $("#lb-diff").classList.toggle("off", all); $("#lb-body").classList.toggle("lb-all", all);
+    const test = B.mode === "test", all = B.mode === "all";           // "檢定" = best 5-minute word check (net WPM)
+    segB($("#lb-scope"), map, "scope"); segB($("#lb-mode"), Object.assign({ all: "全部" }, UI.MODES, { test: "檢定" }), "mode"); segB($("#lb-diff"), UI.DIFFS, "diff");
+    $("#lb-diff").classList.toggle("off", all || test); $("#lb-body").classList.toggle("lb-all", all);
     const body = $("#lb-body"), foot = $("#lb-foot"), id = ++B.req;
     body.innerHTML = `<div class="lb-msg">載入中…</div>`; foot.textContent = "";
     let group = "";
@@ -155,9 +158,9 @@
       $("#lb-group").onchange = (ev) => { B[key] = ev.target.value; renderBoard(); };
     }
     // answers are kept for a minute: switching back and forth should not wait for the server again
-    const ck = [B.scope, group, B.mode, all ? "" : B.diff].join("|"), hit = B.cache[ck];
+    const ck = [B.scope, group, B.mode, all || test ? "" : B.diff].join("|"), hit = B.cache[ck];
     let r = hit && Date.now() - hit.t < 60000 ? hit.r : null;
-    if (!r) { r = await N.leaderboard(B.scope, B.mode, all ? "all" : B.diff, group); if (r && r.ok) B.cache[ck] = { t: Date.now(), r }; }
+    if (!r) { r = await N.leaderboard(B.scope, B.mode, all ? "all" : test ? "word" : B.diff, group); if (r && r.ok) B.cache[ck] = { t: Date.now(), r }; }
     if (id !== B.req) return;
     if (!r || !r.ok) { body.innerHTML = `<div class="lb-msg">${esc(msg(r))}</div>`; return; }
     if (!r.rows.length) { body.innerHTML = `<div class="lb-msg">還沒有人上榜，來當第一名吧。</div>`; }
@@ -165,10 +168,11 @@
       const showCls = B.scope === "grade" || B.scope === "school";
       body.innerHTML = r.rows.map((x) => `<div class="lb-row${x.me ? " me" : ""}"><i>${x.rank}</i><b>${esc(x.name)}${showCls && x.cls ? `<small>${esc(x.cls)}</small>` : ""}</b>` +
         (all ? `<em>${esc((UI.MODES[x.mode] || "").replace("模式", ""))} · ${esc(UI.DIFFS[x.diff] || "")}</em>` : "") +
-        `<span class="sc">${Number(x.score).toLocaleString()}</span><span>第 ${x.wave} 波</span><span>${Math.round(x.wpm)} WPM</span><span>${Math.round(x.acc)}%</span></div>`).join("");
+        (test ? `<span class="sc">${Number(x.score).toFixed(1)}</span><span>${x.wave} 級</span><span>${Math.round(x.wpm)} WPM</span><span>${Math.round(x.acc)}%</span></div>`
+          : `<span class="sc">${Number(x.score).toLocaleString()}</span><span>第 ${x.wave} 波</span><span>${Math.round(x.wpm)} WPM</span><span>${Math.round(x.acc)}%</span></div>`)).join("");
     }
     const title = B.scope === "class" || B.scope === "grade" ? (B.scope === "grade" ? (GRADE_NAME[r.group] || r.group) : r.group) : SCOPES[B.scope];
-    foot.textContent = `${r.year} 學年 · ${title} · 共 ${r.total} 人` + (r.me ? ` · 你是第 ${r.me.rank} 名` : N.ready() && !group ? " · 你還沒有成績" : "");
+    foot.textContent = (test ? "打字檢定（單字 5 分鐘）的淨 WPM · " : "") + `${r.year} 學年 · ${title} · 共 ${r.total} 人` + (r.me ? ` · 你是第 ${r.me.rank} 名` : N.ready() && !group ? " · 你還沒有成績" : "");
   }
 
   /* ---------- score upload after a game ---------- */

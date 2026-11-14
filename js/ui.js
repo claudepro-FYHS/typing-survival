@@ -63,8 +63,9 @@
   }
   function begin(role, me) {
     stopGame();
-    S.role = role; S.me = me; S.rq = []; S.ended = false; RD.reset();
-    $("#hud").classList.toggle("multi", role !== "solo");
+    S.role = role; S.me = me; S.rq = []; S.ended = false; S.again = null; S.onMenu = null; RD.reset();
+    $("#btn-again").style.display = "";
+    $("#hud").classList.toggle("multi", role !== "solo"); $("#hud").classList.remove("test");
     $("#btn-resume").textContent = "繼續";
     $("#pause-title").textContent = role === "solo" ? "暫停" : "選單";
     $("#btn-quit").textContent = role === "solo" ? "回主畫面" : "離開房間";
@@ -80,6 +81,16 @@
       players: [{ pid: "p0", name: "", look: { char: eq.char, skin: eq.skin, weapon: eq.weapon } }] });
     $("#hud-mode").textContent = MODES[S.prefs.mode] + " · " + DIFFS[S.prefs.diff];
   }
+  // typing test (testui.js decides what is typed and what happens at the end): o = { kind, deck, seconds, label, onEnd(G), onLeave(G) }
+  function startTest(o) {
+    const eq = myEquip();
+    begin("solo", "p0");
+    S.test = o;
+    S.G = E.createGame({ test: { kind: o.kind, deck: o.deck, seconds: o.seconds }, words: [], topic: [], scene: eq.scene,
+      players: [{ pid: "p0", name: "", look: { char: eq.char, skin: eq.skin, weapon: eq.weapon } }] });
+    $("#hud").classList.add("test");
+  }
+  function leftTest() { const o = S.test, G = S.G; if (o && G && G.test && !S.ended && S.screen === "game") { S.ended = true; o.onLeave(G); } }
   function beginHost(players, st) {
     const b = wordsFor(st.grade);
     begin("host", "p0");
@@ -100,7 +111,7 @@
     $("#hud-mode").textContent = MODES[st.mode] + " · " + DIFFS[st.diff] + " · " + count + " 人";
   }
   function applySnap(snap, evs) { if (S.role !== "guest") return; S.G = snap; for (const e of evs || []) S.rq.push(e); }
-  function stopGame() { if (S.timer) clearInterval(S.timer); S.timer = 0; S.G = null; S.rq = []; }
+  function stopGame() { if (S.timer) clearInterval(S.timer); S.timer = 0; S.G = null; S.rq = []; S.test = null; }
   // engine events go to the renderer, and (host) to the guests
   function pump() {
     const G = S.G; if (!G || !G.ev || !G.ev.length) return;
@@ -121,6 +132,7 @@
   function finish() {
     const G = S.G;
     if (!G || !G.over || S.screen === "result") return;
+    if (G.test) { if (S.test) S.test.onEnd(G); return; }
     const st = E.stats(G, S.me);
     $("#res-upload").textContent = ""; $("#res-coins").innerHTML = "";
     if (multi()) {
@@ -154,13 +166,24 @@
   }
 
   /* ---------- HUD ---------- */
+  function hudTest(G) {
+    const s = E.testStats(G), left = Math.max(0, Math.ceil(G.test.seconds - G.t));
+    $("#hud-wave").textContent = S.test ? S.test.label : "打字檢定";
+    $("#hud-left").textContent = "剩 " + fmtTime(left);
+    $("#hud-left").classList.toggle("soon", left <= 30);
+    $("#hud-wpm").textContent = Math.round(s.wpm);
+    $("#hud-acc").textContent = (s.keys ? Math.round(s.acc) : 100) + "%";
+    $("#hint").classList.toggle("on", performance.now() < S.hintT);
+  }
   function hud() {
+    if (S.G.test) return hudTest(S.G);
     const G = S.G, P = E.player(G, S.me) || G.players[0], st = E.stats(G, P.pid);
     $("#hp-fill").style.width = (P.hp / P.maxHp) * 100 + "%";
     $("#hp-fill").className = P.hp / P.maxHp < 0.3 ? "low" : "";
     $("#hp-num").textContent = P.down ? "倒下" : Math.ceil(P.hp);
     $("#hp-num").style.color = P.hp / P.maxHp < 0.45 ? "#fff" : "";
     $("#hud-wave").textContent = G.wave ? "第 " + G.wave + " 波" : "準備";
+    $("#hud-left").classList.remove("soon");
     $("#hud-left").textContent = G.resting ? "下一波即將開始" : "剩餘 " + (G.toSpawn + E.enemies(G).length) + " 隻 · " + fmtTime(G.t);
     $("#hud-score").textContent = P.score.toLocaleString();
     $("#hud-kills").textContent = G.n > 1 ? "全隊 " + G.players.reduce((n, p) => n + p.score, 0).toLocaleString() : "擊倒 " + P.kills;
@@ -185,11 +208,15 @@
 
   function frame(now) {
     requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - S.last) / 1000 || 0); S.last = now;
+    const raw = (now - S.last) / 1000 || 0, dt = Math.min(0.05, raw); S.last = now;
     if (S.screen !== "game" && S.screen !== "pause") return;
     $("#waiting").style.display = S.G ? "none" : "";
     if (!S.G) return;
-    if (S.role === "solo" && S.screen === "game") { E.step(S.G, dt); pump(); }
+    if (S.role === "solo" && S.screen === "game") {
+      if (S.G.test) for (let left = Math.min(1, raw); left > 0.0001; left -= 0.05) E.step(S.G, Math.min(0.05, left));   // a test runs on the real clock
+      else E.step(S.G, dt);
+      pump();
+    }
     RD.draw(ctx, S.G, now / 1000, S.rq.splice(0), S.me);
     hud();
     if (S.G.over && !S.ended) { S.ended = true; setTimeout(finish, 900); }
@@ -205,6 +232,17 @@
   addEventListener("keydown", (ev) => {
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
     if (S.screen === "game" || S.screen === "pause") {
+      if (S.G && S.G.test) {                               // typing test: no pause, no items; a line test takes every character
+        if (S.screen !== "game" || S.G.over) return;
+        if (ev.isComposing || ev.key === "Process" || ev.keyCode === 229) { hintMsg("請切換到英文輸入法"); return; }
+        if (ev.key.length !== 1) { if (ev.key === "Escape" || ev.key === "Tab" || ev.key === "Backspace") ev.preventDefault(); return; }
+        ev.preventDefault();
+        const caps = ev.getModifierState && ev.getModifierState("CapsLock");
+        if (S.G.test.kind === "word") { if (!/^[a-zA-Z]$/.test(ev.key)) return; if (caps) hintMsg("Caps Lock 開著"); E.key(S.G, ev.key.toLowerCase(), S.me); }
+        else { if (caps) hintMsg("Caps Lock 開著，請關掉"); E.key(S.G, ev.key, S.me); }
+        pump();
+        return;
+      }
       if (ev.key === "Escape") { show(S.screen === "game" ? "pause" : "game"); ev.preventDefault(); return; }
       if (S.screen !== "game" || !S.G || S.G.over) return;
       if (ev.isComposing || ev.key === "Process" || ev.keyCode === 229) { hintMsg("請切換到英文輸入法"); return; }
@@ -214,19 +252,20 @@
         act({ t: "k", ch: ev.key.toLowerCase() }); ev.preventDefault();
       }
     } else if (ev.key === "Enter" && !/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(ev.target.tagName)) {
-      if (S.screen === "menu" || (S.screen === "result" && !multi())) start();
+      if (S.screen === "menu" || (S.screen === "result" && !multi() && !S.again && !S.onMenu)) start();
     }
   });
-  addEventListener("blur", () => { if (S.screen === "game" && S.role === "solo") show("pause"); });
+  addEventListener("blur", () => { if (S.G && S.G.test) return leftTest(); if (S.screen === "game" && S.role === "solo") show("pause"); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) leftTest(); });
 
-  function toMenu() { stopGame(); S.role = "solo"; renderMenu(); show("menu"); }
+  function toMenu() { stopGame(); S.role = "solo"; S.again = null; S.onMenu = null; renderMenu(); show("menu"); }
   $("#btn-start").onclick = () => start();
-  $("#btn-again").onclick = () => (multi() ? room().backToLobby() : start());
-  $("#btn-menu").onclick = () => (multi() ? room().leave() : toMenu());
+  $("#btn-again").onclick = () => (S.again ? S.again() : multi() ? room().backToLobby() : start());
+  $("#btn-menu").onclick = () => { const f = S.onMenu; if (f) { S.onMenu = null; S.again = null; return f(); } return multi() ? room().leave() : toMenu(); };
   $("#btn-resume").onclick = () => show("game");
   $("#btn-quit").onclick = () => (multi() ? room().leave() : toMenu());
 
-  window.TSUI = { S, $, esc, show, renderMenu, toMenu, settingsText, myEquip, beginHost, beginGuest, applySnap, hostInput, stopGame, MODES, DIFFS };
+  window.TSUI = { S, $, esc, show, renderMenu, toMenu, settingsText, myEquip, wordsFor, startTest, fmtTime, beginHost, beginGuest, applySnap, hostInput, stopGame, MODES, DIFFS };
   renderMenu(); show("menu");
   requestAnimationFrame(frame);
   window.__TSV = { S, start, finish };   // for tests
