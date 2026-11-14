@@ -125,6 +125,20 @@ function doPost(e) {
       case 'leaderboard': return json_(leaderboard_(body));
       case 'buy': return json_(withLock_(function () { return buy_(body); }));
       case 'equip': return json_(withLock_(function () { return equip_(body); }));
+      case 'testInfo': return json_(testInfo_(body));
+      case 'testStart': return json_(withLock_(function () { return testStart_(body); }));
+      case 'testPing': return json_(testPing_(body));
+      case 'testFinish': return json_(withLock_(function () { return testFinish_(body); }));
+      case 'selfStart': return json_(selfStart_(body));
+      case 'selfFinish': return json_(withLock_(function () { return selfFinish_(body); }));
+      case 'myKeys': return json_(myKeys_(body));
+      case 'tTests': return json_(tTests_(body));
+      case 'tCreate': return json_(withLock_(function () { return tCreate_(body); }));
+      case 'tUpdate': return json_(withLock_(function () { return tUpdate_(body); }));
+      case 'tExtra': return json_(withLock_(function () { return tExtra_(body); }));
+      case 'tEnd': return json_(withLock_(function () { return tEnd_(body); }));
+      case 'tMonitor': return json_(tMonitor_(body));
+      case 'tKeys': return json_(tKeys_(body));
       case 'classes': return json_(classes_(body));
     }
     return json_({ ok: false, error: 'unknown_action' });
@@ -145,7 +159,7 @@ function config_() {
   var s = getSettings_();
   return { ok: true, clientId: s.GoogleClientId || '', domain: s.domain, year: s.year, grades: s.grades,
            maxClass: s.maxClass, maxSeat: s.maxSeat, allowOthers: s.allowOthers,
-           prices: prices_(), coinFull: s.coinFull, coinLater: s.coinLater };
+           prices: prices_(), coinFull: s.coinFull, coinLater: s.coinLater, testActive: testActive_() };
 }
 
 /* ------------------------------------------------------------------ */
@@ -210,7 +224,7 @@ function rowToPlayer_(r) {
            seat: Number(r[4]) || 0, classYear: String(r[5] || ''), first: r[6] || '', last: r[7] || '', games: Number(r[8]) || 0,
            coins: Math.max(0, Math.floor(Number(r[9]) || 0)), owned: list_(r[10]), equip: parse_(r[11], {}),
            day: r[12] instanceof Date ? ymd_(r[12]) : String(r[12] || '').replace(/^'/, ''), dayGames: Number(r[13]) || 0,
-           stats: { k: Number(st.k) || 0, r: Number(st.r) || 0, c: Number(st.c) || 0 }, gifts: list_(r[15]) };
+           stats: { k: Number(st.k) || 0, r: Number(st.r) || 0, c: Number(st.c) || 0, t: Number(st.t) || 0 }, gifts: list_(r[15]) };
 }
 function playerRow_(p) {
   return [p.email, p.name, p.nick, p.cls, p.seat || '', p.classYear, p.first, p.last, p.games,
@@ -218,7 +232,7 @@ function playerRow_(p) {
 }
 function newPlayer_(email, name) {
   return { email: email, name: name || '', nick: '', cls: '', seat: 0, classYear: '', first: new Date(), last: '', games: 0,
-           coins: 0, owned: [], equip: {}, day: '', dayGames: 0, stats: { k: 0, r: 0, c: 0 }, gifts: [] };
+           coins: 0, owned: [], equip: {}, day: '', dayGames: 0, stats: { k: 0, r: 0, c: 0, t: 0 }, gifts: [] };
 }
 function parse_(v, d) { try { var o = JSON.parse(String(v || '')); return o && typeof o === 'object' ? o : d; } catch (e) { return d; } }
 function list_(v) { return String(v || '').split(/[,\s]+/).filter(String); }
@@ -358,6 +372,7 @@ var SHOP = {
   'student.red': ['skin', 80, 'student'], 'student.purple': ['skin', 80, 'student'], 'student.ninja': ['skin', 200, 'student'],
   'student.gold': ['skin', 500, 'student'], 'student.hero': ['skin', 0, 'student', 'revives100'],
   'medic.pink': ['skin', 80, 'medic'], 'medic.green': ['skin', 80, 'medic'], 'medic.doctor': ['skin', 200, 'medic'],
+  'medic.master': ['skin', 0, 'medic', 'rank7'],
   'bomber.desert': ['skin', 80, 'bomber'], 'bomber.navy': ['skin', 80, 'bomber'], 'bomber.hardhat': ['skin', 200, 'bomber'],
   'bomber.hunter': ['skin', 0, 'bomber', 'kills5000'],
   'froster.mint': ['skin', 80, 'froster'], 'froster.navy': ['skin', 80, 'froster'], 'froster.penguin': ['skin', 200, 'froster'],
@@ -368,11 +383,12 @@ var SHOP = {
   'scene.park': ['scene', 0], 'scene.school': ['scene', 250], 'scene.night': ['scene', 250], 'scene.snow': ['scene', 250],
   'weapon.keyboard': ['weapon', 0], 'weapon.water': ['weapon', 150], 'weapon.laser': ['weapon', 150], 'weapon.wand': ['weapon', 150], 'weapon.sling': ['weapon', 150]
 };
-// totals: k = zombies knocked down, r = teammates revived, c = best combo in one game
+// totals: k = zombies knocked down, r = teammates revived, c = best combo in one game, t = best typing-test level
 var UNLOCKS = {
   revives100: function (t) { return t.r >= 100; },
   kills5000: function (t) { return t.k >= 5000; },
-  combo100: function (t) { return t.c >= 100; }
+  combo100: function (t) { return t.c >= 100; },
+  rank7: function (t) { return t.t >= 7; }
 };
 var COIN_DIFF = { easy: 0.8, normal: 1, hard: 1.3 };
 var PRICES_MEMO_ = null;
@@ -426,12 +442,16 @@ function earn_(p, r, diff, s) {
   }
   p.coins += earned;
   p.stats.k += r.kills; p.stats.r += r.revives || 0; p.stats.c = Math.max(p.stats.c, r.maxCombo);
+  return { earned: earned, total: p.coins, full: full, left: Math.max(0, s.coinFull - p.dayGames), unlocked: unlock_(p) };
+}
+// adds whatever the running totals now unlock; returns the new ids
+function unlock_(p) {
   var unlocked = [];
   for (var id in SHOP) {
     var u = SHOP[id][3];
     if (u && UNLOCKS[u] && UNLOCKS[u](p.stats) && p.owned.indexOf(id) === -1) { p.owned.push(id); unlocked.push(id); }
   }
-  return { earned: earned, total: p.coins, full: full, left: Math.max(0, s.coinFull - p.dayGames), unlocked: unlocked };
+  return unlocked;
 }
 
 function shopReply_(p, t, s) {
@@ -509,7 +529,8 @@ function leaderboard_(body) {
   var s = getSettings_(), scope = String(body.scope || 'school');
   // mode 'all' = one row per player: their best score in any mode and difficulty
   if (body.mode === ALL) body.diff = ALL;
-  if (['class', 'grade', 'school', 'public'].indexOf(scope) === -1 || (body.mode !== ALL && (MODES.indexOf(body.mode) === -1 || DIFFS.indexOf(body.diff) === -1))) return { ok: false, error: 'bad_request' };
+  if (body.mode === 'test') body.diff = 'word';
+  if (['class', 'grade', 'school', 'public'].indexOf(scope) === -1 || (body.mode !== ALL && body.mode !== 'test' && (MODES.indexOf(body.mode) === -1 || DIFFS.indexOf(body.diff) === -1))) return { ok: false, error: 'bad_request' };
   var t = body.token ? checkToken_(body.token) : null, email = t ? t.e : '';
   var me = null, school = false, teacher = false;
   if (email) { me = findPlayer_(email).data; school = isSchool_(email, s); teacher = !!teacherMap_()[email]; }
@@ -563,7 +584,7 @@ function buildBoard_(scope, group, mode, diff, s) {
   ss.getSheetByName(SHEET_PLAYERS).getDataRange().getValues().slice(1).forEach(function (r) { var p = rowToPlayer_(r); if (p.email) players[p.email] = p; });
   var out = [], bestAt = {};
   ss.getSheetByName(SHEET_SCORES).getDataRange().getValues().slice(1).forEach(function (r) {
-    if (String(r[0]) !== s.year || (mode !== ALL && (r[2] !== mode || r[3] !== diff))) return;
+    if (String(r[0]) !== s.year || (mode === ALL ? r[2] === 'test' : r[2] !== mode || r[3] !== diff)) return;
     var email = String(r[1]).toLowerCase(), p = players[email];
     if (!p) return;
     var school = isSchool_(email, s), teacher = !!teachers[email];
@@ -583,6 +604,520 @@ function buildBoard_(scope, group, mode, diff, s) {
   });
   out.sort(function (a, b) { return b[3] - a[3] || b[5] - a[5]; });
   return out;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Typing test (graded), self check, weak keys, teacher console        */
+/* ------------------------------------------------------------------ */
+// A teacher opens a test for some classes on the website and says its code out loud; students type the
+// code to start. Kinds: word (single words, same rules and marks as the older typing games),
+// sentence (capitals, punctuation), subject (S1 Excel formulas, S2 C lines; other grades get sentences).
+// Speed = key presses / 5 / minutes, where a character that needs Shift is 2 presses and only finished
+// pieces count. Net WPM = WPM x accuracy. Marks out of 100: net 10 = 40, straight line up to the
+// full-marks speed of that kind and grade = 100. Accuracy under TestPassAccuracy halves the attempt.
+// The best attempt counts.
+var SHEET_TESTS = 'Tests', SHEET_TEST_ATTEMPTS = 'TestAttempts', SHEET_TEST_RESULTS = 'TestResults', SHEET_TEST_EXTRA = 'TestExtra', SHEET_KEYS = 'KeyStats';
+var TESTS_HEADERS = ['Code', 'Teacher', 'Classes', 'Kind', 'Minutes', 'Attempts', 'Status', 'Created', 'Closed'];
+var TEST_ATTEMPT_HEADERS = ['Time', 'Test Code', 'Attempt ID', 'Email', 'Class', 'Seat No', 'Name', 'Content', 'Attempt No', 'Status',
+  'Start (ms)', 'Minutes', 'Seconds', 'WPM', 'Accuracy (%)', 'Net WPM', 'Score', 'Keys', 'Errors', 'Words'];
+var TEST_RESULT_HEADERS = ['Test Code', 'Class', 'Seat No', 'Name', 'Email', 'Attempts Used', 'Score (best)', 'Net WPM', 'WPM', 'Accuracy (%)', 'Content', 'Updated'];
+var TEST_EXTRA_HEADERS = ['Test Code', 'Email', 'Extra Attempts', 'Updated', 'By'];
+var KEYS_HEADERS = ['Email', 'Class', 'Seat No', 'Name', 'Updated', 'Keys (key: [right, wrong, ms, timed])'];
+var TEST_SETTINGS = [
+  ['TestMinutes', '5', '新測驗的預設時間（分鐘）'],
+  ['TestAttempts', '2', '新測驗的預設次數（取最高分）'],
+  ['TestFullWPM', 'J1:40, J2:40, J3:45, S1:45, S2:45, S3:45', '單字測驗：各年段淨 WPM 多少拿滿分（最低 40）'],
+  ['TestFullWPMSentence', 'J1:35, J2:35, J3:40, S1:40, S2:40, S3:40', '句子測驗：各年段淨 WPM 多少拿滿分'],
+  ['TestFullWPMSubject', 'S1:30, S2:30', '專科測驗（高一 Excel 公式、高二 C 程式）：淨 WPM 多少拿滿分'],
+  ['TestPassAccuracy', '85', '準確率低於這個 %，該次分數減半'],
+  ['Admins', 'edwinchowzihao@foonyew.edu.my', '可以看到所有老師的測驗的人（逗號分隔）'],
+];
+var TEST_KINDS = ['word', 'sentence', 'subject'];
+var TEST_RANKS = [10, 15, 20, 25, 30, 38, 45, 55, 70];   // net WPM where levels 2..10 start (same list as engine.js)
+var TEST_CODE_TRIES = 5;                                  // wrong codes in a row before a 10-minute wait
+var TEST_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O, 1/I
+
+function clamp_(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function round1_(v) { return Math.round(v * 10) / 10; }
+function testRank_(net) { var n = 1; TEST_RANKS.forEach(function (x) { if (net >= x) n++; }); return n; }
+function testCfgClear_() { CacheService.getScriptCache().remove('testcfg'); }
+
+function fullMap_(text, floor) {
+  var out = {};
+  String(text || '').split(/[,，、;\n]+/).forEach(function (part) {
+    var m = part.trim().match(/^([A-Za-z0-9]+)\s*[:：=]\s*(\d+(?:\.\d+)?)$/);
+    if (m) out[m[1].toUpperCase()] = Math.max(floor, Number(m[2]));
+  });
+  return out;
+}
+
+// settings + the open tests (cached 30 s; every teacher change clears it)
+function testConfig_() {
+  var cache = CacheService.getScriptCache(), hit = cache.get('testcfg');
+  if (hit) return JSON.parse(hit);
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), raw = getSettings_();
+  if (!ss.getSheetByName(SHEET_TESTS)) {                 // first use: make the tabs and show the settings in the sheet
+    var st = ss.getSheetByName(SHEET_SETTINGS);
+    TEST_SETTINGS.forEach(function (r) { if (raw[r[0]] === undefined) { st.appendRow(r); raw[r[0]] = r[1]; } });
+    ensureSheet_(ss, SHEET_TESTS, TESTS_HEADERS); ensureSheet_(ss, SHEET_TEST_ATTEMPTS, TEST_ATTEMPT_HEADERS);
+    ensureSheet_(ss, SHEET_TEST_RESULTS, TEST_RESULT_HEADERS); ensureSheet_(ss, SHEET_TEST_EXTRA, TEST_EXTRA_HEADERS);
+    ensureSheet_(ss, SHEET_KEYS, KEYS_HEADERS);
+  }
+  var get = function (k) { var d = TEST_SETTINGS.filter(function (r) { return r[0] === k; })[0][1]; return raw[k] === undefined || raw[k] === '' ? d : raw[k]; };
+  var cfg = {
+    minutes: clamp_(Number(get('TestMinutes')) || 5, 1, 15),
+    attempts: clamp_(Math.round(Number(get('TestAttempts')) || 2), 1, 10),
+    full: { word: fullMap_(get('TestFullWPM'), 40), sentence: fullMap_(get('TestFullWPMSentence'), 15), subject: fullMap_(get('TestFullWPMSubject'), 15) },
+    passAcc: clamp_(Number(get('TestPassAccuracy')) || 0, 0, 100),
+    admins: String(get('Admins')).toLowerCase().split(/[,，、;\s]+/).filter(String),
+  };
+  cfg.tests = testRows_(ss).filter(function (t) { return t.status === 'open'; });
+  cache.put('testcfg', JSON.stringify(cfg), 30);
+  return cfg;
+}
+function testActive_() { try { return testConfig_().tests.length > 0; } catch (e) { return false; } }
+
+// every test in the Tests tab (oldest first)
+function testRows_(ss) {
+  var sh = ensureSheet_(ss, SHEET_TESTS, TESTS_HEADERS), v = sh.getDataRange().getValues(), out = [];
+  for (var i = 1; i < v.length; i++) {
+    var r = v[i]; if (!String(r[0] || '').trim()) continue;
+    out.push({ row: i + 1, code: String(r[0]).trim(), teacher: String(r[1] || '').toLowerCase(), classes: splitClasses_(r[2]),
+      kind: TEST_KINDS.indexOf(String(r[3])) === -1 ? 'word' : String(r[3]),
+      minutes: clamp_(Number(r[4]) || 5, 1, 15), attempts: clamp_(Math.round(Number(r[5]) || 2), 1, 10),
+      status: String(r[6] || '').trim().toLowerCase() === 'open' ? 'open' : 'closed',
+      created: r[7] instanceof Date ? r[7].getTime() : Number(r[7]) || 0 });
+  }
+  return out;
+}
+
+// what this class actually types in a test of this kind, and the full-marks speed for it
+function testContent_(kind, cls) {
+  var g = gradeOf_(String(cls || '').toUpperCase());
+  if (kind === 'subject') return g === 'S1' ? 'excel' : g === 'S2' ? 'c' : 'sentence';
+  return kind === 'sentence' ? 'sentence' : 'word';
+}
+function testFullWpm_(content, cls, cfg) {
+  var kind = content === 'word' ? 'word' : content === 'sentence' ? 'sentence' : 'subject', map = cfg.full[kind];
+  cls = String(cls || '').toUpperCase();
+  var best = 0, len = -1;
+  for (var k in map) if (cls.indexOf(k) === 0 && k.length > len) { best = map[k]; len = k.length; }
+  if (kind === 'word') return Math.max(40, best || 40);
+  return best || (kind === 'sentence' ? (/^(J1|J2)/.test(cls) ? 35 : 40) : 30);
+}
+function testScore_(net, acc, full, passAcc) {
+  var sc = net >= full ? 100 : net <= 10 ? net * 4 : 40 + 60 * (net - 10) / (full - 10);
+  if (acc < passAcc) sc /= 2;
+  return Math.round(Math.max(0, sc));
+}
+
+// the test code a student types: case, spaces and the kind of dash don't matter
+function normCode_(c) { return String(c == null ? '' : c).toUpperCase().replace(/[\s\-_－—–]+/g, ''); }
+function splitClasses_(s) { return String(s || '').toUpperCase().split(/[,，、;；\s]+/).filter(String); }
+function classOk_(p, classes) {
+  if (!classes.length) return true;
+  var c = String(p.cls || '').toUpperCase();
+  return classes.some(function (x) { return c === x || c.indexOf(x) === 0; });
+}
+// the signed-in student with this year's class, or an error
+function testStudent_(body) {
+  var t = checkToken_(body.token);
+  if (!t) return { error: 'session_expired' };
+  var s = getSettings_(), found = findPlayer_(t.e), p = found.data;
+  if (!p || !isSchool_(t.e, s) || !p.cls || p.classYear !== s.year) return { error: 'no_profile', email: t.e };
+  return { email: t.e, p: p, found: found, s: s };
+}
+function testsFor_(p, cfg) { return cfg.tests.filter(function (t) { return classOk_(p, t.classes); }).reverse(); }
+
+function testAttempts_(ss) {
+  var sh = ensureSheet_(ss, SHEET_TEST_ATTEMPTS, TEST_ATTEMPT_HEADERS);
+  return { sh: sh, values: sh.getDataRange().getValues() };
+}
+function testAttemptOf_(r, i, k) {
+  return { row: i + 1, id: String(r[2]), n: Number(r[8]) || k + 1, status: String(r[9]), start: Number(r[10]) || 0,
+    minutes: Number(r[11]) || 0, wpm: Number(r[13]) || 0, acc: Number(r[14]) || 0, net: Number(r[15]) || 0,
+    score: r[16] === '' || r[16] == null ? null : Number(r[16]), content: String(r[7]) };
+}
+// this student's attempts at this test, oldest first
+function testMine_(values, code, email) {
+  var out = [];
+  for (var i = 1; i < values.length; i++) {
+    var r = values[i];
+    if (String(r[1]) !== code || String(r[3]).toLowerCase() !== email) continue;
+    out.push(testAttemptOf_(r, i, out.length));
+  }
+  return out;
+}
+function testBestOf_(mine) {
+  var best = null;
+  mine.forEach(function (a) { if (a.score != null && (!best || a.score > best.score || (a.score === best.score && a.net > best.net))) best = a; });
+  return best;
+}
+// extra attempts a teacher gave (email -> n)
+function testExtraMap_(ss, code) {
+  var sh = ensureSheet_(ss, SHEET_TEST_EXTRA, TEST_EXTRA_HEADERS), v = sh.getDataRange().getValues(), map = {};
+  for (var i = 1; i < v.length; i++) if (String(v[i][0]) === code) map[String(v[i][1]).toLowerCase()] = { n: Number(v[i][2]) || 0, row: i + 1 };
+  return map;
+}
+function testAllowed_(test, extraMap, email) { var e = extraMap[email]; return Math.max(0, test.attempts + (e ? e.n : 0)); }
+
+// one row per student and test in TestResults (written whenever an attempt starts or ends): the marks to copy out
+function testUpsertResult_(ss, code, email, p, mine) {
+  var sh = ensureSheet_(ss, SHEET_TEST_RESULTS, TEST_RESULT_HEADERS);
+  var values = sh.getDataRange().getValues(), row = 0;
+  for (var i = 1; i < values.length; i++) if (String(values[i][0]) === code && String(values[i][4]).toLowerCase() === email) { row = i + 1; break; }
+  var b = testBestOf_(mine);
+  var vals = [code, p.cls, p.seat, p.name, email, mine.length, b ? b.score : 0, b ? b.net : '', b ? b.wpm : '', b ? b.acc : '', mine.length ? mine[0].content : '', new Date()];
+  if (row) sh.getRange(row, 1, 1, vals.length).setValues([vals]); else sh.appendRow(vals);
+}
+function testPublic_(mine) {
+  return mine.map(function (a) { return { n: a.n, status: a.status, score: a.score, net: a.net, wpm: a.wpm, acc: a.acc }; });
+}
+
+/* ---------- students ---------- */
+// The code itself is never sent: students must type it (from the teacher) to start.
+function testInfo_(body) {
+  var t = checkToken_(body.token);
+  if (!t) return { ok: false, error: 'session_expired' };
+  var cfg = testConfig_(), teacher = !!teacherMap_()[t.e] || cfg.admins.indexOf(t.e) !== -1;
+  var out = { ok: true, active: cfg.tests.length > 0, passAcc: cfg.passAcc, teacher: teacher, allowed: false, history: [] };
+  var S = testStudent_(body);
+  if (S.error) { out.reason = 'no_profile'; return out; }
+  var mineTests = testsFor_(S.p, cfg);
+  out.allowed = mineTests.length > 0;
+  if (mineTests.length) {
+    var test = mineTests[0], ss = SpreadsheetApp.getActiveSpreadsheet();
+    var mine = testMine_(testAttempts_(ss).values, test.code, S.email);
+    out.minutes = test.minutes; out.attempts = testAllowed_(test, testExtraMap_(ss, test.code), S.email);
+    out.kind = test.kind; out.content = testContent_(test.kind, S.p.cls); out.full = testFullWpm_(out.content, S.p.cls, cfg);
+    out.used = mine.length; out.history = testPublic_(mine);
+    var b = testBestOf_(mine); out.best = b ? b.score : null;
+  }
+  return out;
+}
+
+function testStart_(body) {
+  var S = testStudent_(body);
+  if (S.error) return { ok: false, error: S.error };
+  var cfg = testConfig_(), email = S.email, p = S.p;
+  if (!cfg.tests.length) return { ok: false, error: 'no_test' };
+  var cache = CacheService.getScriptCache(), triesKey = 'codetries:' + email, tries = Number(cache.get(triesKey)) || 0;
+  if (tries >= TEST_CODE_TRIES) return { ok: false, error: 'too_many_codes' };
+  var typed = normCode_(body.code), test = cfg.tests.filter(function (x) { return normCode_(x.code) === typed; })[0];
+  if (!typed || !test) { cache.put(triesKey, String(tries + 1), 600); return { ok: false, error: 'wrong_code' }; }   // costs no attempt
+  if (!classOk_(p, test.classes)) return { ok: false, error: 'not_your_class' };
+  var code = test.code, ss = SpreadsheetApp.getActiveSpreadsheet(), t = testAttempts_(ss), mine = testMine_(t.values, code, email);
+  var allowed = testAllowed_(test, testExtraMap_(ss, code), email);
+  if (mine.length >= allowed) return { ok: false, error: 'no_attempts', used: mine.length };
+  var id = Utilities.getUuid(), n = mine.length + 1, now = Date.now(), content = testContent_(test.kind, p.cls);
+  t.sh.appendRow([new Date(now), code, id, email, p.cls, p.seat, p.name, content, n, 'started', now, test.minutes, '', '', '', '', '', '', '', '']);
+  mine.push({ id: id, n: n, status: 'started', start: now, minutes: test.minutes, score: null, net: 0, wpm: 0, acc: 0, content: content });
+  testUpsertResult_(ss, code, email, p, mine);
+  return { ok: true, attemptId: id, attemptNo: n, attempts: allowed, minutes: test.minutes, kind: test.kind, content: content, code: code,
+    grade: gradeOf_(p.cls), full: testFullWpm_(content, p.cls, cfg), passAcc: cfg.passAcc };
+}
+
+// every ~10 s during a test: live progress for the teacher's screen (cache only, no lock, no sheet write)
+function testPing_(body) {
+  var t = checkToken_(body.token);
+  if (!t) return { ok: false, error: 'session_expired' };
+  var id = String(body.attemptId || ''); if (!id) return { ok: false, error: 'no_attempt' };
+  var cache = CacheService.getScriptCache();
+  var keys = Math.max(0, Number(body.keys) || 0);
+  cache.put('live:' + id, JSON.stringify({ c: clamp_(Number(body.correct) || 0, 0, keys), g: clamp_(Number(body.good) || 0, 0, keys), k: keys,
+    w: Math.max(0, Number(body.words) || 0), t: Date.now() }), 1800);
+  return { ok: true, kicked: !!cache.get('kick:' + id) };
+}
+
+// scores an attempt over `minutes` and writes it (used by testFinish_ and by the teacher ending an attempt)
+function testScoreRow_(ss, t, ri, r, cfg, minutes, secs, n, status) {
+  var email = String(r[3]).toLowerCase(), content = String(r[7]) || 'word', full = testFullWpm_(content, r[4], cfg);
+  var wpm = n.correct / 5 / minutes, acc = n.keys ? n.good / n.keys * 100 : 0;
+  if (wpm > MAX_WPM) { status = 'rejected (too fast)'; wpm = 0; acc = 0; }
+  var net = wpm * acc / 100, score = testScore_(net, acc, full, cfg.passAcc);
+  wpm = round1_(wpm); acc = round1_(acc); net = round1_(net);
+  t.sh.getRange(ri + 1, 10, 1, 11).setValues([[status, Number(r[10]), round1_(minutes), secs, wpm, acc, net, score, n.keys, n.keys - n.good, n.words]]);
+  var mine = testMine_(t.values, String(r[1]), email), id = String(r[2]);
+  mine.forEach(function (a) { if (a.id === id) { a.status = status; a.wpm = wpm; a.acc = acc; a.net = net; a.score = score; } });
+  var p = findPlayer_(email).data || { cls: r[4], seat: r[5], name: r[6] };
+  testUpsertResult_(ss, String(r[1]), email, p, mine);
+  return { wpm: wpm, acc: acc, net: net, score: score, status: status, full: full, mine: mine, content: content };
+}
+function testCounts_(body) {
+  var keys = clamp_(Math.round(Number(body.keys) || 0), 0, 200000);
+  var good = clamp_(Math.round(Number(body.good) || 0), 0, keys);
+  return { keys: keys, good: good, correct: clamp_(Math.round(Number(body.correct) || 0), 0, good), words: clamp_(Math.round(Number(body.words) || 0), 0, 20000) };
+}
+
+function testFinish_(body) {
+  var tk = checkToken_(body.token);
+  if (!tk) return { ok: false, error: 'session_expired' };
+  var email = tk.e, ss = SpreadsheetApp.getActiveSpreadsheet(), t = testAttempts_(ss), id = String(body.attemptId || ''), r = null, ri = 0;
+  for (var i = 1; i < t.values.length; i++) if (String(t.values[i][2]) === id && String(t.values[i][3]).toLowerCase() === email) { r = t.values[i]; ri = i; break; }
+  if (!r) return { ok: false, error: 'no_attempt' };
+  var code = String(r[1]), cfg = testConfig_(), minutes = Number(r[11]) || cfg.minutes;
+  var test = testRows_(ss).filter(function (x) { return x.code === code; })[0];
+  var allowed = test ? testAllowed_(test, testExtraMap_(ss, code), email) : Number(r[8]) || 1;
+  if (String(r[9]) !== 'started') { // sent twice (network retry) or ended by the teacher: answer with what is saved
+    var mine0 = testMine_(t.values, code, email), b0 = testBestOf_(mine0);
+    return { ok: true, already: true, status: String(r[9]), attemptNo: Number(r[8]), attempts: allowed, wpm: Number(r[13]) || 0, accuracy: Number(r[14]) || 0,
+      net: Number(r[15]) || 0, score: Number(r[16]) || 0, best: b0 ? b0.score : null, full: testFullWpm_(String(r[7]), r[4], cfg), passAcc: cfg.passAcc, history: testPublic_(mine0) };
+  }
+  var secs = Math.round((Date.now() - Number(r[10])) / 1000), left = !!body.left;
+  if (!left && secs < minutes * 60 - 20) return { ok: false, error: 'too_early' };
+  var s = testScoreRow_(ss, t, ri, r, cfg, minutes, secs, testCounts_(body), left ? 'left page' : 'finished');   // leaving = the whole time counts
+  var b = testBestOf_(s.mine), extra = afterTest_(email, body.stats, s.content === 'word' && s.status === 'finished' && minutes >= 3 ? s.net : null);
+  return { ok: true, attemptNo: Number(r[8]), attempts: allowed, wpm: s.wpm, accuracy: s.acc, net: s.net, score: s.score, status: s.status,
+    best: b ? b.score : null, full: s.full, passAcc: cfg.passAcc, history: testPublic_(s.mine), rank: extra.rank, unlocked: extra.unlocked };
+}
+
+// after any test: add the per-key numbers to the student's KeyStats row; a word test also sets the level
+function afterTest_(email, stats, wordNet) {
+  var out = { rank: wordNet == null ? null : testRank_(wordNet), unlocked: [] };
+  var found = findPlayer_(email), p = found.data;
+  if (!p) return out;
+  mergeKeys_(p, stats);
+  if (out.rank != null && out.rank > (p.stats.t || 0)) {
+    p.stats.t = out.rank;
+    out.unlocked = unlock_(p);
+    writePlayer_(found, p);
+  }
+  return out;
+}
+function cleanKeys_(stats) {
+  var out = {}, n = 0;
+  if (!stats || typeof stats !== 'object') return out;
+  for (var k in stats) {
+    if (k.length !== 1 || k < '!' || k > '~' || ++n > 100) continue;
+    var v = stats[k] || {}, f = function (x, max) { return clamp_(Math.round(Number(x) || 0), 0, max); };
+    out[k] = [f(v.h, 50000), f(v.m, 50000), f(v.ms, 100000000), f(v.n, 50000)];
+  }
+  return out;
+}
+function keysRow_(email) {
+  var sh = ensureSheet_(SpreadsheetApp.getActiveSpreadsheet(), SHEET_KEYS, KEYS_HEADERS), v = sh.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) if (String(v[i][0]).toLowerCase() === email) return { sh: sh, row: i + 1, keys: parse_(v[i][5], {}) };
+  return { sh: sh, row: 0, keys: {} };
+}
+function mergeKeys_(p, stats) {
+  var add = cleanKeys_(stats), any = false, k;
+  for (k in add) { any = true; break; }
+  if (!any) return;
+  var at = keysRow_(p.email), cur = at.keys;
+  for (k in add) { var c = cur[k] || [0, 0, 0, 0]; cur[k] = [c[0] + add[k][0], c[1] + add[k][1], c[2] + add[k][2], c[3] + add[k][3]]; }
+  var row = [p.email, p.cls, p.seat || '', p.name, new Date(), JSON.stringify(cur)];
+  if (at.row) at.sh.getRange(at.row, 1, 1, row.length).setValues([row]); else at.sh.appendRow(row);
+}
+function myKeys_(body) {
+  var t = checkToken_(body.token);
+  if (!t) return { ok: false, error: 'session_expired' };
+  return { ok: true, keys: keysRow_(t.e).keys };
+}
+
+/* ---------- self check: no code, any time; the 5-minute word check is ranked ---------- */
+function selfStart_(body) {
+  var t = checkToken_(body.token);
+  if (!t) return { ok: false, error: 'session_expired' };
+  var kind = TEST_KINDS.indexOf(String(body.kind)) === -1 ? 'word' : String(body.kind), cfg = testConfig_(), now = Date.now();
+  var p = findPlayer_(t.e).data, cls = p ? p.cls : '', content = testContent_(kind, cls);
+  var payload = [t.e, now, cfg.minutes, content].join('|');
+  return { ok: true, st: Utilities.base64EncodeWebSafe(payload) + '.' + sign_('self|' + payload), minutes: cfg.minutes, content: content,
+    grade: gradeOf_(cls), full: testFullWpm_(content, cls, cfg), passAcc: cfg.passAcc };
+}
+function selfFinish_(body) {
+  var t = checkToken_(body.token);
+  if (!t) return { ok: false, error: 'session_expired' };
+  var parts = String(body.st || '').split('.'), payload = '';
+  try { payload = Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString(); } catch (e) { return { ok: false, error: 'bad_request' }; }
+  if (parts.length !== 2 || sign_('self|' + payload) !== parts[1]) return { ok: false, error: 'bad_request' };
+  var f = payload.split('|'), minutes = Number(f[2]), content = f[3], secs = Math.round((Date.now() - Number(f[1])) / 1000);
+  if (f[0] !== t.e) return { ok: false, error: 'bad_request' };
+  if (secs < minutes * 60 - 20) return { ok: false, error: 'too_early' };
+  if (secs > minutes * 60 + 300) return { ok: false, error: 'too_late' };
+  var cfg = testConfig_(), s = getSettings_(), n = testCounts_(body), found = findPlayer_(t.e), p = found.data;
+  var wpm = n.correct / 5 / minutes, acc = n.keys ? n.good / n.keys * 100 : 0;
+  if (wpm > MAX_WPM) return { ok: false, error: 'rejected' };
+  var net = round1_(wpm * acc / 100), cls = p ? p.cls : '', full = testFullWpm_(content, cls, cfg);
+  var out = { ok: true, content: content, wpm: round1_(wpm), accuracy: round1_(acc), net: net, score: testScore_(net, acc, full, cfg.passAcc), full: full, passAcc: cfg.passAcc,
+    rank: content === 'word' ? testRank_(net) : null, ranked: false, unlocked: [] };
+  if (!p) return out;
+  var school = isSchool_(t.e, s), teacher = !!teacherMap_()[t.e];
+  var ready = !describe_(p, t.e, t.n || '', school, teacher, s).needsProfile;
+  var extra = afterTest_(t.e, body.stats, content === 'word' ? net : null);
+  out.unlocked = extra.unlocked;
+  if (content !== 'word' || !ready || body.input === 'touch') return out;
+  // the leaderboard row: Mode test / Difficulty word; "Score" holds the net WPM, "Wave" the level
+  var row = [s.year, t.e, 'test', 'word', net, out.rank, 0, out.wpm, out.accuracy, 0, Math.round(minutes * 60), new Date()];
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_SCORES), v = sh.getDataRange().getValues(), at = 0, old = null;
+  for (var i = 1; i < v.length; i++) if (String(v[i][0]) === s.year && String(v[i][1]).toLowerCase() === t.e && v[i][2] === 'test') { at = i + 1; old = Number(v[i][4]) || 0; break; }
+  out.ranked = true; out.best = !at || net > old; out.bestNet = out.best ? net : old;
+  if (out.best) {
+    if (at) sh.getRange(at, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
+    var cache = CacheService.getScriptCache();
+    ['class', 'grade', 'school', 'public'].forEach(function (scope) { cache.remove(boardKey_(scope, groupFor_(scope, findPlayer_(t.e).data, school, teacher), 'test', 'word', s.year)); });
+  }
+  return out;
+}
+
+/* ---------- teachers (老師後台 on the website) ---------- */
+// the signed-in teacher, or an error. Admins (Settings: Admins) see every teacher's tests.
+function testTeacher_(body) {
+  var t = checkToken_(body.token);
+  if (!t) return { error: 'session_expired' };
+  var admin = testConfig_().admins.indexOf(t.e) !== -1;
+  if (!admin && !teacherMap_()[t.e]) return { error: 'not_teacher' };
+  return { email: t.e, admin: admin };
+}
+function teacherNames_() {
+  var map = {};
+  SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PLAYERS).getDataRange().getValues().slice(1).forEach(function (r) { var e = String(r[0] || '').trim().toLowerCase(); if (e && r[1]) map[e] = String(r[1]); });
+  return map;
+}
+function testPublicTest_(t, names) {
+  return { code: t.code, teacher: t.teacher, teacherName: (names && names[t.teacher]) || t.teacher, classes: t.classes.join(', '),
+    kind: t.kind, minutes: t.minutes, attempts: t.attempts, status: t.status, created: t.created };
+}
+// a test this teacher may manage (own tests; admins: all)
+function testOwned_(ss, T, code) {
+  var test = testRows_(ss).filter(function (x) { return x.code === String(code || ''); })[0];
+  if (!test) return { error: 'no_such_test' };
+  if (!T.admin && test.teacher !== T.email) return { error: 'not_your_test' };
+  return { test: test };
+}
+function testNewCode_(ss) {
+  var used = {}; testRows_(ss).forEach(function (t) { used[normCode_(t.code)] = true; });
+  for (var k = 0; k < 50; k++) {
+    var c = ''; for (var i = 0; i < 5; i++) c += TEST_CODE_CHARS.charAt(Math.floor(Math.random() * TEST_CODE_CHARS.length));
+    c = c.slice(0, 2) + '-' + c.slice(2);
+    if (!used[normCode_(c)] && /[A-Z]/.test(c)) return c;
+  }
+  return 'T-' + Date.now().toString(36).toUpperCase();
+}
+
+function tTests_(body) {
+  var T = testTeacher_(body); if (T.error) return { ok: false, error: T.error };
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), cfg = testConfig_(), names = teacherNames_();
+  var list = testRows_(ss).filter(function (t) { return T.admin || t.teacher === T.email; }).reverse().map(function (t) { return testPublicTest_(t, names); });
+  return { ok: true, admin: T.admin, email: T.email, tests: list, suggest: testNewCode_(ss),
+    defaults: { minutes: cfg.minutes, attempts: cfg.attempts }, full: cfg.full, passAcc: cfg.passAcc };
+}
+function badClasses_(classes) { return classes.some(function (c) { return !/^[JS][1-6][A-Z0-9]*$/.test(c); }); }
+
+function tCreate_(body) {
+  var T = testTeacher_(body); if (T.error) return { ok: false, error: T.error };
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), cfg = testConfig_();
+  var classes = splitClasses_(body.classes);
+  if (!classes.length) return { ok: false, error: 'need_classes' };
+  if (badClasses_(classes)) return { ok: false, error: 'bad_classes' };
+  var code = String(body.code || '').trim().toUpperCase().slice(0, 20) || testNewCode_(ss);
+  if (!/[A-Z]/.test(code) || normCode_(code).length < 3) return { ok: false, error: 'bad_code' };
+  if (testRows_(ss).some(function (t) { return normCode_(t.code) === normCode_(code); })) return { ok: false, error: 'code_used' };
+  var minutes = clamp_(Math.round(Number(body.minutes) || cfg.minutes), 1, 15), attempts = clamp_(Math.round(Number(body.attempts) || cfg.attempts), 1, 10);
+  var kind = TEST_KINDS.indexOf(String(body.kind)) === -1 ? 'word' : String(body.kind);
+  ensureSheet_(ss, SHEET_TESTS, TESTS_HEADERS).appendRow([code, T.email, classes.join(', '), kind, minutes, attempts, 'open', new Date(), '']);
+  testCfgClear_();
+  var test = testRows_(ss).filter(function (x) { return x.code === code; })[0];
+  return { ok: true, test: testPublicTest_(test, teacherNames_()) };
+}
+
+// change a test: status (open / closed), attempts, minutes (new attempts only), classes
+function tUpdate_(body) {
+  var T = testTeacher_(body); if (T.error) return { ok: false, error: T.error };
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), o = testOwned_(ss, T, body.code); if (o.error) return { ok: false, error: o.error };
+  var test = o.test, sh = ss.getSheetByName(SHEET_TESTS);
+  if (body.status === 'open' || body.status === 'closed') {
+    sh.getRange(test.row, 7, 1, 3).setValues([[body.status, new Date(test.created || Date.now()), body.status === 'closed' ? new Date() : '']]);
+  }
+  if (body.attempts != null) sh.getRange(test.row, 6).setValues([[clamp_(Math.round(Number(body.attempts) || 1), 1, 10)]]);
+  if (body.minutes != null) sh.getRange(test.row, 5).setValues([[clamp_(Math.round(Number(body.minutes) || 5), 1, 15)]]);
+  if (body.classes != null) {
+    var classes = splitClasses_(body.classes);
+    if (!classes.length) return { ok: false, error: 'need_classes' };
+    if (badClasses_(classes)) return { ok: false, error: 'bad_classes' };
+    sh.getRange(test.row, 3).setValues([[classes.join(', ')]]);
+  }
+  testCfgClear_();
+  var fresh = testRows_(ss).filter(function (x) { return x.code === test.code; })[0];
+  return { ok: true, test: testPublicTest_(fresh, teacherNames_()) };
+}
+
+// give one student more (or fewer) attempts than the test's number
+function tExtra_(body) {
+  var T = testTeacher_(body); if (T.error) return { ok: false, error: T.error };
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), o = testOwned_(ss, T, body.code); if (o.error) return { ok: false, error: o.error };
+  var email = String(body.email || '').trim().toLowerCase(); if (!email) return { ok: false, error: 'no_student' };
+  var delta = clamp_(Math.round(Number(body.delta) || 0), -5, 5);
+  var map = testExtraMap_(ss, o.test.code), cur = map[email] ? map[email].n : 0;
+  var n = clamp_(cur + delta, -o.test.attempts, 10), sh = ss.getSheetByName(SHEET_TEST_EXTRA);
+  if (map[email]) sh.getRange(map[email].row, 3, 1, 3).setValues([[n, new Date(), T.email]]);
+  else sh.appendRow([o.test.code, email, n, new Date(), T.email]);
+  return { ok: true, extra: n, allowed: Math.max(0, o.test.attempts + n) };
+}
+
+// the teacher ends a student's attempt: scored with what was typed so far, over the time used; it counts as used
+function tEnd_(body) {
+  var T = testTeacher_(body); if (T.error) return { ok: false, error: T.error };
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), o = testOwned_(ss, T, body.code); if (o.error) return { ok: false, error: o.error };
+  var t = testAttempts_(ss), id = String(body.attemptId || ''), r = null, ri = 0;
+  for (var i = 1; i < t.values.length; i++) if (String(t.values[i][2]) === id && String(t.values[i][1]) === o.test.code) { r = t.values[i]; ri = i; break; }
+  if (!r) return { ok: false, error: 'no_attempt' };
+  if (String(r[9]) !== 'started') return { ok: false, error: 'not_running' };
+  var cache = CacheService.getScriptCache(), live = JSON.parse(cache.get('live:' + id) || '{}');
+  var minutesSet = Number(r[11]) || o.test.minutes, secs = Math.round((Date.now() - Number(r[10])) / 1000);
+  var used = Math.max(0.1, Math.min(minutesSet, secs / 60));
+  var s = testScoreRow_(ss, t, ri, r, testConfig_(), used, secs, testCounts_({ keys: live.k, good: live.g, correct: live.c, words: live.w }), 'ended by teacher');
+  cache.put('kick:' + id, '1', 3600);
+  return { ok: true, score: s.score, net: s.net };
+}
+
+// everyone who joined this test, with their attempts and live progress
+function tMonitor_(body) {
+  var T = testTeacher_(body); if (T.error) return { ok: false, error: T.error };
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), o = testOwned_(ss, T, body.code); if (o.error) return { ok: false, error: o.error };
+  var test = o.test, v = testAttempts_(ss).values, extra = testExtraMap_(ss, test.code), byEmail = {}, order = [], liveKeys = [];
+  for (var i = 1; i < v.length; i++) {
+    var r = v[i]; if (String(r[1]) !== test.code) continue;
+    var email = String(r[3]).toLowerCase();
+    if (!byEmail[email]) { byEmail[email] = { email: email, attempts: [] }; order.push(email); }
+    var a = testAttemptOf_(r, i, byEmail[email].attempts.length);
+    byEmail[email].cls = String(r[4]); byEmail[email].seat = String(r[5]); byEmail[email].name = String(r[6]);
+    byEmail[email].attempts.push(a);
+    if (a.status === 'started') liveKeys.push('live:' + a.id);
+  }
+  var live = liveKeys.length ? CacheService.getScriptCache().getAll(liveKeys) : {}, now = Date.now();
+  var students = order.map(function (e) {
+    var s = byEmail[e], b = testBestOf_(s.attempts);
+    s.allowed = testAllowed_(test, extra, e); s.extra = extra[e] ? extra[e].n : 0;
+    s.best = b ? { score: b.score, net: b.net, wpm: b.wpm, acc: b.acc } : null;
+    s.attempts = s.attempts.map(function (a) {
+      var out = { id: a.id, n: a.n, status: a.status, score: a.score, net: a.net, wpm: a.wpm, acc: a.acc, content: a.content };
+      if (a.status === 'started') {
+        var L = live['live:' + a.id] ? JSON.parse(live['live:' + a.id]) : null, secs = (now - a.start) / 1000;
+        out.secsLeft = Math.max(0, Math.round(a.minutes * 60 - secs));
+        out.lost = secs > a.minutes * 60 + 60; // never finished (page closed / crashed)
+        if (L) { out.words = L.w; out.liveWpm = round1_(L.c / 5 / Math.max(0.1, secs / 60)); out.liveAcc = L.k ? round1_(L.g / L.k * 100) : 0; }
+      }
+      return out;
+    });
+    return s;
+  });
+  students.sort(function (a, b) { return a.cls < b.cls ? -1 : a.cls > b.cls ? 1 : (Number(a.seat) || 0) - (Number(b.seat) || 0); });
+  return { ok: true, test: testPublicTest_(test, teacherNames_()), students: students, now: now };
+}
+
+// the keys a class gets wrong most (all tests and practice so far)
+function tKeys_(body) {
+  var T = testTeacher_(body); if (T.error) return { ok: false, error: T.error };
+  var want = String(body.cls || '').toUpperCase().replace(/\s/g, '');
+  if (!/^[JS][1-6][A-Z0-9]*$/.test(want)) return { ok: false, error: 'bad_classes' };
+  var sh = ensureSheet_(SpreadsheetApp.getActiveSpreadsheet(), SHEET_KEYS, KEYS_HEADERS), sum = {}, students = 0;
+  sh.getDataRange().getValues().slice(1).forEach(function (r) {
+    if (String(r[1]).toUpperCase().indexOf(want) !== 0) return;
+    students++;
+    var k = parse_(r[5], {});
+    for (var ch in k) { var c = sum[ch] || (sum[ch] = [0, 0, 0, 0]), a = k[ch]; for (var i = 0; i < 4; i++) c[i] += Number(a[i]) || 0; }
+  });
+  return { ok: true, cls: want, students: students, keys: sum };
 }
 
 /* ------------------------------------------------------------------ */

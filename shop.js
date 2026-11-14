@@ -28,6 +28,7 @@
     { id: "medic.pink",     char: "medic",   tier: "common", price: 80,  name: "粉紅制服",   look: { body: "#ffb3c7", hatCol: "#ffb3c7" } },
     { id: "medic.green",    char: "medic",   tier: "common", price: 80,  name: "手術綠",     look: { body: "#7fd1b3", hatCol: "#7fd1b3" } },
     { id: "medic.doctor",   char: "medic",   tier: "rare",   price: 200, name: "口罩醫生",   look: { body: "#dfe9f0", hatCol: "#4fa3c7", extra: "mask", extraCol: "#bfe3f2" } },
+    { id: "medic.master",   char: "medic",   tier: "feat",   price: 0,   name: "打字大師",   look: { body: "#2b2f4a", hatCol: "#ffd447", extra: "cape", extraCol: "#ffd447", aura: "gold" }, unlock: "rank7", how: "打字檢定達到 7 級" },
 
     { id: "bomber.desert",  char: "bomber",  tier: "common", price: 80,  name: "沙漠迷彩",   look: { body: "#c9a868", hatCol: "#8f7440" } },
     { id: "bomber.navy",    char: "bomber",  tier: "common", price: 80,  name: "海軍藍",     look: { body: "#3d5a80", hatCol: "#293d59" } },
