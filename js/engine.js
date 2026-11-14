@@ -379,11 +379,17 @@
       const e = addEnemy(G, T.kind === "line" ? "tank" : "normal", sx + Math.cos(a) * 520, sy + Math.sin(a) * 520, [w]);
       e.slot = slot; e.sx = sx; e.sy = sy; e.tp = P.pid;
     }
+    // line test: a queue. The line being typed always stands in the first place (top middle), the others move up.
+    if (T.kind === "line") {
+      const q = G.ents.slice().sort((a, b) => a.id - b.id);
+      q.forEach((e, i) => { e.slot = i; e.sx = slots[i % slots.length][0]; e.sy = slots[i % slots.length][1]; });
+      P.target = q.length ? q[0].id : 0;
+    }
+    const speed = T.kind === "line" ? 800 : 260;
     for (const e of G.ents) {
       const d = Math.hypot(e.sx - e.x, e.sy - e.y);
-      if (d > 0.5) { const v = Math.min(260 * dt, d); e.x += ((e.sx - e.x) / d) * v; e.y += ((e.sy - e.y) / d) * v; }
+      if (d > 0.5) { const v = Math.min(speed * dt, d); e.x += ((e.sx - e.x) / d) * v; e.y += ((e.sy - e.y) / d) * v; }
     }
-    if (T.kind === "line") P.target = G.ents.length ? G.ents.reduce((a, b) => (a.id < b.id ? a : b)).id : 0;
   }
   function keyTest(G, P, ch) {
     if (typeof ch !== "string" || ch.length !== 1) return false;
