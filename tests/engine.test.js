@@ -228,6 +228,85 @@ test("characters: what they start with, and nothing else changes", () => {
   assert.deepStrictEqual([s.scene, s.players[0].look, s.players[1].look], ["snow", { char: "medic", skin: "medic.pink", weapon: "laser" }, { char: "student", skin: "", weapon: "keyboard" }]);
 });
 
+/* ---------------- typing test ---------------- */
+const LINES = require("../lines.js");
+const mkTest = (kind, deck, seconds) => E.createGame({ test: { kind, deck, seconds: seconds || 300 }, seed: 1, words: [], topic: [], players: [{ pid: "p0", name: "", look: { char: "guard" } }] });
+
+test("test content: plain keyboard characters, short enough, enough of it", () => {
+  for (const k of ["sentence", "excel", "c"]) {
+    assert.ok(LINES[k].length >= 40, k + " has " + LINES[k].length);
+    for (const l of LINES[k]) assert.ok(/^[\x21-\x7e]+( [\x21-\x7e]+)*$/.test(l) && l.length <= 46, k + ": " + JSON.stringify(l));
+    assert.strictEqual(new Set(LINES[k]).size, LINES[k].length, k + " has a repeated line");
+  }
+  assert.deepStrictEqual([LINES.subjectOf("S1"), LINES.subjectOf("S2"), LINES.subjectOf("J2")], ["excel", "c", ""]);
+});
+
+test("word test: 4 waiting enemies, nobody attacks, finished words count (+1 space), clock ends it", () => {
+  const G = mkTest("word", ["apple", "ant", "boy", "cat", "dog", "egg", "fish"], 60), P = G.players[0];
+  assert.deepStrictEqual([P.maxHp, P.items.shield, G.players.length], [100, 0, 1], "character abilities are off");
+  for (let i = 0; i < 600; i++) E.step(G, 0.05);                        // 30 s of doing nothing
+  assert.deepStrictEqual([G.ents.length, P.hp, G.over], [4, 100, false]);
+  assert.deepStrictEqual(G.ents.map((e) => e.word).sort(), ["apple", "boy", "cat", "dog"], "ant is held back: two words must not start with the same letter");
+  assert.ok(G.ents.every((e) => !e.biting && Math.hypot(e.x - P.x, e.y - P.y) > 200), "they wait at a distance");
+  type(G, "ap");
+  assert.strictEqual(E.key(G, "b"), false, "locked on apple: b is a mistake");
+  type(G, "ple");
+  assert.deepStrictEqual([P.tDone, P.tKeys, P.tWords], [6, 7, 1], "5 letters + the space = 6 correct of 7 presses");
+  E.step(G, 0.05);
+  assert.strictEqual(G.ents.length, 4, "a new enemy replaces the one knocked down");
+  assert.ok(G.ents.some((e) => e.word === "ant"), "now that a is free, ant comes next");
+  type(G, "bo");                                                          // unfinished word at the end does not count
+  assert.strictEqual(E.key(G, "z"), false);
+  const s = E.testStats(G, 1);
+  assert.deepStrictEqual([s.correct, s.keys, Math.round(s.wpm * 10) / 10, Math.round(s.acc)], [6, 10, 1.2, 60]);
+  for (let i = 0; i < 700 && !G.over; i++) E.step(G, 0.05);
+  assert.ok(G.over && G.t === 60, "ends when the time is up");
+  assert.strictEqual(E.key(G, "y"), false);
+});
+
+test("line test: exact characters in order, Shift characters count 2, pieces count at each space", () => {
+  const G = mkTest("line", ['printf("%d\\n", x);', "int a, b;", "return 0;", "x = 1;"], 300), P = G.players[0];
+  E.step(G, 0.05);
+  assert.strictEqual(G.ents.length, 3);
+  assert.strictEqual(E.ent(G, P.target).word, 'printf("%d\\n", x);', "the first line is the active one");
+  assert.strictEqual(E.key(G, "i"), false, "cannot start another line");
+  assert.strictEqual(E.key(G, "P"), false, "capital P is not p");
+  type(G, 'printf("%d\\n",');
+  assert.deepStrictEqual([P.tDone, P.tPend, P.tWords], [0, 18, 0], "14 characters, 4 of them with Shift, nothing counted before the space");
+  type(G, " ");
+  assert.deepStrictEqual([P.tDone, P.tPend, P.tWords], [19, 0, 1]);
+  type(G, "x);");
+  assert.deepStrictEqual([P.tDone, P.tWords, P.tKeys], [23, 2, 25], "the whole line is 18 characters = 23 presses; 2 wrong presses on top");
+  E.step(G, 0.05);
+  assert.strictEqual(E.ent(G, P.target).word, "int a, b;");
+  assert.deepStrictEqual([E.presses("("), E.presses("A"), E.presses("a"), E.presses("5"), E.presses(";"), E.presses('"'), E.presses("'"), E.presses("=")], [2, 2, 1, 1, 1, 2, 1, 1]);
+  assert.ok(P.keyStats["("].h === 1 && P.keyStats.p.m === 2 && P.keyStats.p.h === 1, "per-key hits and misses are kept (both wrong presses are charged to p, the key that was wanted)");
+});
+
+test("marks and levels: same table as the older typing games", () => {
+  const sc = (net, full, acc) => E.testScore(net, acc == null ? 100 : acc, full, 85);
+  assert.deepStrictEqual([5, 10, 15, 20, 25, 30, 35, 40, 45, 60].map((n) => sc(n, 40)), [20, 40, 50, 60, 70, 80, 90, 100, 100, 100]);
+  assert.deepStrictEqual([5, 10, 15, 20, 25, 30, 35, 40, 45].map((n) => sc(n, 45)), [20, 40, 49, 57, 66, 74, 83, 91, 100]);
+  assert.deepStrictEqual([sc(30, 40, 84.9), sc(30, 40, 85), sc(0, 40), sc(30, 30), sc(20, 30)], [40, 80, 0, 100, 70]);
+  assert.deepStrictEqual([0, 9.9, 10, 14.9, 15, 20, 25, 30, 37.9, 38, 45, 55, 69.9, 70, 150].map(E.rankOf), [1, 1, 2, 2, 3, 4, 5, 6, 6, 7, 8, 9, 9, 10, 10]);
+});
+
+test("a typing bot through a whole 5-minute test of each kind", () => {
+  for (const [kind, deck] of [["word", WORDS.filter((w) => w.length <= 8)], ["line", LINES.sentence], ["line", LINES.c], ["line", LINES.excel]]) {
+    const G = mkTest(kind, deck, 300), P = G.players[0];
+    let acc = 0;
+    for (let i = 0; i < 60 * 310 && !G.over; i++) {
+      E.step(G, 1 / 60); acc += 1 / 60;
+      if (acc >= 0.2) { acc = 0; const t = E.ent(G, P.target) || G.ents[0]; if (t) E.key(G, t.word[E.prog(t, "p0")]); }
+      if (kind === "word" && i % 30 === 0) { const f = G.ents.map((e) => e.word[0]); assert.strictEqual(new Set(f).size, f.length, "first letters clash: " + G.ents.map((e) => e.word)); }
+      G.ev.length = 0;
+    }
+    const s = E.testStats(G, 5);
+    assert.ok(G.over && P.errors === 0 && Math.round(s.acc) === 100 && s.wpm > 40 && s.wpm < 75, `${kind}: wpm ${s.wpm.toFixed(1)}, acc ${s.acc.toFixed(1)}`);
+    JSON.stringify(E.snapshot(G));
+  }
+});
+
 test("snapshot is plain JSON a guest can draw from", () => {
   const G = mk("free", { players: team(2) });
   for (let i = 0; i < 200; i++) E.step(G, 0.05);

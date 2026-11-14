@@ -54,7 +54,7 @@
   }
 
   function createGame(o) {
-    const list = (o.players && o.players.length ? o.players : [{ pid: "p0", name: "" }]).slice(0, MAX_PLAYERS);
+    const list = (o.test ? [(o.players && o.players[0]) || { pid: "p0", name: "" }] : o.players && o.players.length ? o.players : [{ pid: "p0", name: "" }]).slice(0, MAX_PLAYERS);
     const G = {
       W: o.W || 1280, H: o.H || 720,
       mode: o.mode === "free" ? "free" : "classic",
@@ -65,6 +65,11 @@
       ents: [], nextId: 1, freezeT: 0, over: false, ev: [], n: list.length, scene: o.scene || "park",
     };
     G.D = DIFF[G.diff];
+    // Typing test (see "typing test" below): o.test = { kind: "word" | "line", deck: [...], seconds }
+    if (o.test) {
+      G.test = { kind: o.test.kind === "line" ? "line" : "word", deck: o.test.deck.slice(), seconds: o.test.seconds, i: 0, keep: o.test.kind === "line" ? 3 : 4 };
+      G.mode = "classic"; o = Object.assign({}, o, { noAbilities: true, players: [{ pid: "p0", name: "", look: (o.players && o.players[0] && o.players[0].look) || {} }] });
+    }
     G.players = list.map((p, i) => {
       const a = -Math.PI / 2 + (i * 2 * Math.PI) / list.length, r = list.length > 1 ? RING : 0;
       const look = p.look || {}, C = (!o.noAbilities && CHARS[look.char]) || CHARS.student;
@@ -75,6 +80,7 @@
         medkitHp: C.medkitHp || MEDKIT_HP, bombR: C.bombR || BOMB_RADIUS, freezeSec: C.freezeSec || FREEZE_SEC, crate: C.crate || CRATE_CHANCE,
         score: 0, combo: 0, maxCombo: 0, kills: 0, keys: 0, hits: 0, errors: 0, switches: 0, downs: 0, revives: 0,
         items: { bomb: 0, freeze: 0, medkit: 0, shield: 0 }, keyStats: {},
+        tKeys: 0, tDone: 0, tPend: 0, tWords: 0, lastKey: 0,
       };
       if (C.item) P.items[C.item] = 1;
       return P;
@@ -184,6 +190,7 @@
   /* ---------- time ---------- */
   function step(G, dt) {
     if (G.over) return;
+    if (G.test) return stepTest(G, dt);
     G.t += dt;
     if (G.freezeT > 0) G.freezeT = Math.max(0, G.freezeT - dt);
     for (const p of G.players) if (p.shieldT > 0) p.shieldT = Math.max(0, p.shieldT - dt);
@@ -248,6 +255,11 @@
     G.ev.push({ e: "miss", pid: P.pid });
     return false;
   }
+  // how long the player took to find this key (for the weak-key report); long pauses are not counted
+  function timeKey(G, P, ch) {
+    const gap = G.t - P.lastKey; P.lastKey = G.t;
+    if (gap > 0 && gap < 2) { const s = P.keyStats[ch] || (P.keyStats[ch] = { h: 0, m: 0 }); s.ms = (s.ms || 0) + Math.round(gap * 1000); s.n = (s.n || 0) + 1; }
+  }
   function kill(G, e, P, how) {
     G.kills++;
     if (P) P.kills++;
@@ -255,7 +267,7 @@
     if (how === "bomb" && P) P.score += Math.max(0, e.hp) * 5;
     remove(G, e);
     G.ev.push({ e: "kill", id: e.id, x: e.x, y: e.y, kind: e.kind, bonus: e.maxHp * 5, how: how || "typed", pid: P ? P.pid : "" });
-    if (G.rnd() < (P ? P.crate : CRATE_CHANCE)) {
+    if (!G.test && G.rnd() < (P ? P.crate : CRATE_CHANCE)) {
       const item = ITEMS[Math.floor(G.rnd() * ITEMS.length)];
       const crates = G.ents.filter((c) => c.kind === "crate");
       const clash = G.ents.some((o) => o.word[0] === item[0]);
@@ -297,7 +309,9 @@
   }
   function key(G, ch, pid) {
     const P = pid ? player(G, pid) : G.players[0];
-    if (G.over || !P || P.down || P.left || !/^[a-z]$/.test(ch)) return false;
+    if (G.over || !P || P.down || P.left) return false;
+    if (G.test) return keyTest(G, P, ch);
+    if (!/^[a-z]$/.test(ch)) return false;
     P.keys++;
     const t = ent(G, P.target);
     if (t && t.word[prog(t, P.pid)] === ch) return hit(G, P, t, ch);
@@ -334,6 +348,81 @@
     return true;
   }
 
+  /* ---------- typing test ----------
+     Not survival: nobody attacks, nothing drops, the clock ends it. Enemies walk to a place and wait.
+     word: 4 enemies with one word each; the first letter picks one, then it must be finished.
+     line: whole lines (capitals, spaces, symbols) typed in order, the first one in the queue is active.
+     Speed counts key presses: a character that needs Shift is 2 presses. Only finished pieces count
+     (a word, or a line up to a space), like an ordinary typing test; a finished word also counts
+     the space that would follow it. */
+  const SHIFTED = /[A-Z~!@#$%^&*()_+{}|:"<>?]/;
+  const presses = (ch) => (SHIFTED.test(ch) ? 2 : 1);
+  const SLOTS = {
+    word: [[640, 120], [990, 250], [990, 500], [640, 610], [290, 500], [290, 250]],
+    line: [[640, 190], [330, 520], [950, 520]],
+  };
+  function stepTest(G, dt) {
+    const T = G.test, P = G.players[0];
+    G.t += dt;
+    if (G.t >= T.seconds) { G.t = T.seconds; return end(G); }
+    const slots = SLOTS[T.kind];
+    while (G.ents.length < T.keep) {
+      const used = new Set(G.ents.map((e) => e.slot));
+      let slot = 0; while (used.has(slot)) slot++;
+      let k = T.i;                                   // word: skip ahead to a word whose first letter is free
+      if (T.kind === "word") { const first = new Set(G.ents.map((e) => e.word[0])); for (let n = 0; n < 40 && first.has(T.deck[k % T.deck.length][0]); n++) k++; }
+      const w = T.deck[k % T.deck.length];
+      if (k !== T.i) { T.deck[k % T.deck.length] = T.deck[T.i % T.deck.length]; T.deck[T.i % T.deck.length] = w; }
+      T.i++;
+      const [sx, sy] = slots[slot % slots.length], a = Math.atan2(sy - P.y, sx - P.x);
+      const e = addEnemy(G, T.kind === "line" ? "tank" : "normal", sx + Math.cos(a) * 520, sy + Math.sin(a) * 520, [w]);
+      e.slot = slot; e.sx = sx; e.sy = sy; e.tp = P.pid;
+    }
+    for (const e of G.ents) {
+      const d = Math.hypot(e.sx - e.x, e.sy - e.y);
+      if (d > 0.5) { const v = Math.min(260 * dt, d); e.x += ((e.sx - e.x) / d) * v; e.y += ((e.sy - e.y) / d) * v; }
+    }
+    if (T.kind === "line") P.target = G.ents.length ? G.ents.reduce((a, b) => (a.id < b.id ? a : b)).id : 0;
+  }
+  function keyTest(G, P, ch) {
+    if (typeof ch !== "string" || ch.length !== 1) return false;
+    const T = G.test;
+    P.keys++;
+    let t = ent(G, P.target);
+    if (!t && T.kind === "word") {
+      let best = Infinity;
+      for (const e of G.ents) { const d = d2(e, P); if (e.word[0] === ch && d < best) { best = d; t = e; } }
+      if (!t) { P.tKeys++; return miss(G, P, null); }
+      P.target = t.id;
+    }
+    if (!t) return false;
+    const want = t.word[prog(t, P.pid)];
+    if (ch !== want) { P.tKeys++; timeKey(G, P, want); return miss(G, P, want); }
+    const w = presses(ch);
+    P.tKeys += w; P.tPend += w;
+    timeKey(G, P, ch);
+    const last = prog(t, P.pid) + 1 >= t.word.length;
+    if (last || ch === " ") {
+      if (last && T.kind === "word") { P.tKeys++; P.tPend++; }      // the space after a word
+      P.tDone += P.tPend; P.tPend = 0; P.tWords++;
+    }
+    return hit(G, P, t, ch);
+  }
+  // Net WPM -> marks out of 100: net 10 = 40, straight line up to `full` = 100; below 10 in proportion.
+  // Accuracy under passAcc halves it. Same rule as the older typing games and as Code.gs.
+  function testScore(net, acc, full, passAcc) {
+    let sc = net >= full ? 100 : net <= 10 ? net * 4 : 40 + (60 * (net - 10)) / (full - 10);
+    if (acc < passAcc) sc /= 2;
+    return Math.round(Math.max(0, sc));
+  }
+  const RANKS = [10, 15, 20, 25, 30, 38, 45, 55, 70];          // net WPM where levels 2..10 start
+  const rankOf = (net) => 1 + RANKS.filter((x) => net >= x).length;
+  function testStats(G, minutes) {
+    const P = G.players[0], min = minutes || Math.max(G.t, 1) / 60;
+    const wpm = P.tDone / 5 / min, acc = P.tKeys ? (P.tDone / P.tKeys) * 100 : 0;
+    return { correct: P.tDone, keys: P.tKeys, words: P.tWords, secs: Math.round(G.t), wpm, acc, net: (wpm * acc) / 100 };
+  }
+
   function stats(G, pid) {
     const P = pid ? player(G, pid) : G.players[0];
     return {
@@ -349,7 +438,7 @@
     const r1 = (v) => Math.round(v * 10) / 10;
     return {
       remote: true, W: G.W, H: G.H, mode: G.mode, diff: G.diff, n: G.n, scene: G.scene, t: r1(G.t), kills: G.kills, wave: G.wave,
-      toSpawn: G.toSpawn, resting: G.resting, freezeT: r1(G.freezeT), over: G.over,
+      toSpawn: G.toSpawn, resting: G.resting, freezeT: r1(G.freezeT), over: G.over, test: G.test ? { kind: G.test.kind, seconds: G.test.seconds } : undefined,
       players: G.players.map((p) => ({
         pid: p.pid, name: p.name, i: p.i, look: p.look, x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, down: p.down, left: p.left, shieldT: r1(p.shieldT),
         target: p.target, score: p.score, combo: p.combo, maxCombo: p.maxCombo, kills: p.kills, keys: p.keys, hits: p.hits,
@@ -362,7 +451,7 @@
     };
   }
 
-  const API = { DIFF, KIND, ITEMS, CHARS, BOMB_RADIUS, MAX_PLAYERS, createGame, step, key, useItem, leave, stats, snapshot, mult, ent, player, prog, standing, addEnemy, addCrate, enemies };
+  const API = { DIFF, KIND, ITEMS, CHARS, RANKS, presses, testScore, rankOf, testStats, BOMB_RADIUS, MAX_PLAYERS, createGame, step, key, useItem, leave, stats, snapshot, mult, ent, player, prog, standing, addEnemy, addCrate, enemies };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   else root.TSEngine = API;
 })(typeof window !== "undefined" ? window : globalThis);
