@@ -258,7 +258,7 @@ test("word test: 4 waiting enemies, nobody attacks, finished words count (+1 spa
   type(G, "bo");                                                          // unfinished word at the end does not count
   assert.strictEqual(E.key(G, "z"), false);
   const s = E.testStats(G, 1);
-  assert.deepStrictEqual([s.correct, s.keys, Math.round(s.wpm * 10) / 10, Math.round(s.acc)], [6, 10, 1.2, 60]);
+  assert.deepStrictEqual([s.correct, s.good, s.keys, Math.round(s.wpm * 10) / 10, Math.round(s.acc)], [6, 8, 10, 1.2, 80], "speed: finished words only; accuracy: every correct press");
   for (let i = 0; i < 700 && !G.over; i++) E.step(G, 0.05);
   assert.ok(G.over && G.t === 60, "ends when the time is up");
   assert.strictEqual(E.key(G, "y"), false);
@@ -272,11 +272,11 @@ test("line test: exact characters in order, Shift characters count 2, pieces cou
   assert.strictEqual(E.key(G, "i"), false, "cannot start another line");
   assert.strictEqual(E.key(G, "P"), false, "capital P is not p");
   type(G, 'printf("%d\\n",');
-  assert.deepStrictEqual([P.tDone, P.tPend, P.tWords], [0, 18, 0], "14 characters, 4 of them with Shift, nothing counted before the space");
-  type(G, " ");
-  assert.deepStrictEqual([P.tDone, P.tPend, P.tWords], [19, 0, 1]);
-  type(G, "x);");
-  assert.deepStrictEqual([P.tDone, P.tWords, P.tKeys], [23, 2, 25], "the whole line is 18 characters = 23 presses; 2 wrong presses on top");
+  assert.deepStrictEqual([P.tDone, P.tPend], [18, 0], "14 characters, 4 of them with Shift; the comma ends a piece");
+  type(G, " x");
+  assert.deepStrictEqual([P.tDone, P.tPend], [19, 1], "x waits for the end of its piece");
+  type(G, ");");
+  assert.deepStrictEqual([P.tDone, P.tGood, P.tKeys], [23, 23, 25], "the whole line is 18 characters = 23 presses; 2 wrong presses on top");
   E.step(G, 0.05);
   assert.strictEqual(E.ent(G, P.target).word, "int a, b;");
   assert.deepStrictEqual([E.presses("("), E.presses("A"), E.presses("a"), E.presses("5"), E.presses(";"), E.presses('"'), E.presses("'"), E.presses("=")], [2, 2, 1, 1, 1, 2, 1, 1]);
@@ -302,7 +302,7 @@ test("a typing bot through a whole 5-minute test of each kind", () => {
       G.ev.length = 0;
     }
     const s = E.testStats(G, 5);
-    assert.ok(G.over && P.errors === 0 && Math.round(s.acc) === 100 && s.wpm > 40 && s.wpm < 75, `${kind}: wpm ${s.wpm.toFixed(1)}, acc ${s.acc.toFixed(1)}`);
+    assert.ok(G.over && P.errors === 0 && Math.round(s.acc) === 100 && s.wpm > 40 && s.wpm < 95, `${kind}: wpm ${s.wpm.toFixed(1)}, acc ${s.acc.toFixed(1)}`);
     JSON.stringify(E.snapshot(G));
   }
 });

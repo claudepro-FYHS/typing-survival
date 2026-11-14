@@ -80,7 +80,7 @@
         medkitHp: C.medkitHp || MEDKIT_HP, bombR: C.bombR || BOMB_RADIUS, freezeSec: C.freezeSec || FREEZE_SEC, crate: C.crate || CRATE_CHANCE,
         score: 0, combo: 0, maxCombo: 0, kills: 0, keys: 0, hits: 0, errors: 0, switches: 0, downs: 0, revives: 0,
         items: { bomb: 0, freeze: 0, medkit: 0, shield: 0 }, keyStats: {},
-        tKeys: 0, tDone: 0, tPend: 0, tWords: 0, lastKey: 0,
+        tKeys: 0, tDone: 0, tPend: 0, tGood: 0, tWords: 0, lastKey: 0,
       };
       if (C.item) P.items[C.item] = 1;
       return P;
@@ -353,10 +353,11 @@
      word: 4 enemies with one word each; the first letter picks one, then it must be finished.
      line: whole lines (capitals, spaces, symbols) typed in order, the first one in the queue is active.
      Speed counts key presses: a character that needs Shift is 2 presses. Only finished pieces count
-     (a word, or a line up to a space), like an ordinary typing test; a finished word also counts
-     the space that would follow it. */
+     for speed (a word; in a line, up to a space , ; or ")"), like an ordinary typing test; a finished
+     word also counts the space that would follow it. Accuracy = correct presses / all presses. */
   const SHIFTED = /[A-Z~!@#$%^&*()_+{}|:"<>?]/;
   const presses = (ch) => (SHIFTED.test(ch) ? 2 : 1);
+  const PIECE_END = /[ ,;)]/;                     // a line counts piece by piece, so little is lost when the time runs out
   const SLOTS = {
     word: [[640, 120], [990, 250], [990, 500], [640, 610], [290, 500], [290, 250]],
     line: [[640, 190], [330, 520], [950, 520]],
@@ -370,7 +371,7 @@
       const used = new Set(G.ents.map((e) => e.slot));
       let slot = 0; while (used.has(slot)) slot++;
       let k = T.i;                                   // word: skip ahead to a word whose first letter is free
-      if (T.kind === "word") { const first = new Set(G.ents.map((e) => e.word[0])); for (let n = 0; n < 40 && first.has(T.deck[k % T.deck.length][0]); n++) k++; }
+      if (T.kind === "word") { const first = new Set(G.ents.map((e) => e.word[0])); for (let n = 0; n < Math.min(T.deck.length, 400) && first.has(T.deck[k % T.deck.length][0]); n++) k++; }
       const w = T.deck[k % T.deck.length];
       if (k !== T.i) { T.deck[k % T.deck.length] = T.deck[T.i % T.deck.length]; T.deck[T.i % T.deck.length] = w; }
       T.i++;
@@ -399,11 +400,11 @@
     const want = t.word[prog(t, P.pid)];
     if (ch !== want) { P.tKeys++; timeKey(G, P, want); return miss(G, P, want); }
     const w = presses(ch);
-    P.tKeys += w; P.tPend += w;
+    P.tKeys += w; P.tPend += w; P.tGood += w;
     timeKey(G, P, ch);
     const last = prog(t, P.pid) + 1 >= t.word.length;
-    if (last || ch === " ") {
-      if (last && T.kind === "word") { P.tKeys++; P.tPend++; }      // the space after a word
+    if (last || (T.kind === "line" && PIECE_END.test(ch))) {
+      if (last && T.kind === "word") { P.tKeys++; P.tPend++; P.tGood++; }      // the space after a word
       P.tDone += P.tPend; P.tPend = 0; P.tWords++;
     }
     return hit(G, P, t, ch);
@@ -419,8 +420,8 @@
   const rankOf = (net) => 1 + RANKS.filter((x) => net >= x).length;
   function testStats(G, minutes) {
     const P = G.players[0], min = minutes || Math.max(G.t, 1) / 60;
-    const wpm = P.tDone / 5 / min, acc = P.tKeys ? (P.tDone / P.tKeys) * 100 : 0;
-    return { correct: P.tDone, keys: P.tKeys, words: P.tWords, secs: Math.round(G.t), wpm, acc, net: (wpm * acc) / 100 };
+    const wpm = P.tDone / 5 / min, acc = P.tKeys ? (P.tGood / P.tKeys) * 100 : 0;
+    return { correct: P.tDone, good: P.tGood, keys: P.tKeys, words: P.tWords, secs: Math.round(G.t), wpm, acc, net: (wpm * acc) / 100 };
   }
 
   function stats(G, pid) {
