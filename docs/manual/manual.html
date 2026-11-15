@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-TW"><head><meta charset="utf-8">
+<style>
+@page { size: A4; margin: 10mm 13mm; }
+body { font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; font-size: 9.8pt; line-height: 1.4; color: #222; }
+h1 { font-size: 17pt; margin: 0 0 2px; color: #1a3d7c; }
+.sub { color: #666; margin: 0 0 8px; font-size: 9.5pt; }
+h2 { font-size: 11.5pt; margin: 7px 0 3px; padding: 2px 8px; background: #e8eef9; border-left: 4px solid #1a3d7c; }
+ul, ol { margin: 2px 0; padding-left: 20px; }
+li { margin: 1px 0; }
+p { margin: 3px 0; }
+table { border-collapse: collapse; margin: 4px 0; font-size: 9.3pt; }
+td, th { border: 1px solid #bbb; padding: 2px 7px; text-align: center; }
+th { background: #f2f2f2; }
+td.l, th.l { text-align: left; }
+code { background: #f3f3f3; padding: 0 4px; border-radius: 3px; font-family: Consolas, monospace; }
+.shots { display: flex; gap: 8px; margin: 5px 0 0; }
+.shots figure { margin: 0; flex: 1; text-align: center; font-size: 8.5pt; color: #555; }
+.shots .crop { height: 168px; overflow: hidden; border: 1px solid #ccc; border-radius: 4px; background: #14161c; }
+.shots img { display: block; }
+.note { color: #8a4b00; }
+.two { display: flex; gap: 14px; } .two > div { flex: 1; }
+</style></head><body>
+<h1>打字求生 · 打字測驗老師使用說明</h1>
+<p class="sub">遊戲網址：claudepro-fyhs.github.io/typing-survival　（用電腦和實體鍵盤，建議 Chrome）</p>
+
+<h2>一、測驗方式</h2>
+<ul>
+<li>測驗用遊戲的畫面進行：喪屍頭上有字，打完就擊倒。<b>喪屍停在遠處等</b>，不會攻擊，學生不會扣血，也沒有道具和暫停。</li>
+<li>預設每次 <b>5 分鐘</b>、每人 <b>2 次，取最高分</b>（開考時可改）。</li>
+<li>開考時選一種類型，三種的成績分開記：</li>
+</ul>
+<table>
+<tr><th>類型</th><th class="l">學生打什麼</th></tr>
+<tr><td>單字</td><td class="l">英文單字（混有該年段電腦課的用詞）。打錯的鍵沒有反應，記一次錯。</td></tr>
+<tr><td>句子</td><td class="l">整句英文，一次一行，大小寫、空格、標點都要照打。</td></tr>
+<tr><td>專科</td><td class="l">高一打 Excel 公式，高二打整行 C 程式。其他年段選這一項會改出句子。</td></tr>
+</table>
+<p>學生要用<b>學校 Google 帳號</b>登入並填好班級座號才能考。</p>
+
+<h2>二、老師開考（都在遊戲網站上完成）</h2>
+<ol>
+<li>用學校帳號登入 → 主畫面按 <b>打字檢定</b> → <b>老師後台</b>。</li>
+<li>填一行：<b>班級</b>（例如 <code>J203, J204</code>，或整個年段 <code>J2</code>）、<b>類型</b>、<b>分鐘</b>、<b>次數</b>、<b>代號</b>（可用系統給的，或自己改）→ 按 <b>開新測驗</b>。</li>
+<li>把代號<b>口頭告訴</b>學生或寫在白板。學生按 <b>打字檢定</b> → 輸入代號 → <b>開始測驗</b>。</li>
+<li>名單每 6 秒自動更新：誰在考、剩多少時間、每次的分數、最高分。每位學生右邊有兩個按鈕：
+ <b>結束</b>（用目前打的字計分，這次算用掉）、<b>加考 1 次</b>（當機、斷線或要重考時用）。</li>
+<li>考完按 <b>關閉測驗</b>，再按 <b>下載成績（Excel）</b>。檔案裡的「最高分」就是要登記的分數。</li>
+</ol>
+<p>幾班同時考：每班各開一個測驗（各自的代號），或一個測驗填多個班。關閉後可以按 <b>重新開放</b>。</p>
+
+<div class="shots">
+<figure><div class="crop"><img src="shot-console.png" style="width:128%;margin:-4% 0 0 -9%"></div><figcaption>老師後台：即時名單和分數</figcaption></figure>
+<figure><div class="crop"><img src="shot-menu.png" style="width:190%;margin:-12% 0 0 -45%"></div><figcaption>學生輸入代號（網頁上看不到代號）</figcaption></figure>
+<figure><div class="crop"><img src="shot-line.png" style="width:118%;margin:0 0 0 -9%"></div><figcaption>專科測驗：高二照打整行 C 程式</figcaption></figure>
+</div>
+
+<div class="two"><div>
+<h2>三、評分</h2>
+<ul>
+<li><b>淨 WPM</b> = 打字速度（WPM）× 準確率。</li>
+<li>淨 10 = 40 分，直線往上到滿分速度 = 100 分。</li>
+<li>準確率低於 <b>85%</b>，該次分數減半。</li>
+<li>句子和專科：要按 Shift 的字（大寫、<code>( " {</code> 等）算 2 個鍵。</li>
+</ul>
+<table><tr><th class="l">淨 WPM</th><th>10</th><th>20</th><th>30</th><th>40</th><th>45+</th></tr>
+<tr><td class="l">單字 初一、初二</td><td>40</td><td>60</td><td>80</td><td>100</td><td>100</td></tr>
+<tr><td class="l">單字 初三、高中</td><td>40</td><td>57</td><td>74</td><td>91</td><td>100</td></tr>
+<tr><td class="l">句子 初一、初二</td><td>40</td><td>64</td><td>88</td><td>100</td><td>100</td></tr>
+<tr><td class="l">句子 初三、高中</td><td>40</td><td>60</td><td>80</td><td>100</td><td>100</td></tr>
+<tr><td class="l">專科 高一、高二</td><td>40</td><td>70</td><td>100</td><td>100</td><td>100</td></tr></table>
+</div><div>
+<h2>四、考前告訴學生</h2>
+<ul>
+<li>代號只在課堂公布。打錯代號不扣次數，連錯 5 次要等 10 分鐘。</li>
+<li><b>切換分頁或視窗，該次立即結束</b>，以離開前打的字、整段時間計分（分數會很低）。</li>
+<li>考試中關閉或重新整理網頁，該次算用掉。真的當機或斷線，老師按「加考 1 次」。</li>
+<li>速度超過 220 WPM 該次作廢。</li>
+</ul>
+<h2>五、其他功能</h2>
+<ul>
+<li><b>班級弱點鍵</b>（老師後台上方）：輸入班級或年段，看全班最常打錯的鍵。</li>
+<li>學生平時可以做<b>自我檢定</b>（不用代號、不限次數，有 1–10 級段位）和<b>弱點練習</b>，都不算測驗分數。</li>
+<li>每位老師只看到自己開的測驗。</li>
+</ul>
+</div></div>
+<p class="note">※ 要開考，請先請曹子豪老師把你的學校 email 加進老師名單。</p>
+</body></html>
