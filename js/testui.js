@@ -10,7 +10,7 @@
   const CONTENT = { word: "單字", sentence: "句子", excel: "Excel 公式", c: "C 程式" };
   const KIND = { word: "單字", sentence: "句子", subject: "專科（高一 Excel 公式、高二 C 程式，其他年段打句子）" };
   const KIND_SHORT = { word: "單字", sentence: "句子", subject: "專科" };
-  const STATUS = { started: "考試中", finished: "完成", "left page": "切換視窗", "ended by teacher": "老師結束", "rejected (too fast)": "作廢" };
+  const STATUS = { started: "考試中", finished: "完成", "not started": "沒開始（網路）不計", "left page": "離開頁面", "ended by teacher": "老師結束", "rejected (too fast)": "作廢" };
   const ERR = {
     network: "連不上伺服器，請再試一次。", session_expired: "登入已過期，請回主畫面重新登入。", server: "伺服器出錯，請稍後再試。",
     no_profile: "要先用學校帳號登入並填好班級。", no_test: "目前沒有開放中的測驗。", wrong_code: "代號不對，請再聽一次老師公布的代號。",
@@ -20,11 +20,11 @@
     code_used: "這個代號用過了，請換一個。", not_your_test: "這是別的老師開的測驗。", no_such_test: "找不到這個測驗。", not_running: "這次測驗已經結束了。",
   };
   const msg = (r) => ERR[r && r.error] || ERR.server;
-  const call = (action, body, tries) => N.post(action, Object.assign({ token: N.token }, body || {}), tries || 3);
+  const call = (action, body, tries, timeoutMs, keepalive) => N.post(action, Object.assign({ token: N.token }, body || {}), tries || 3, timeoutMs, keepalive);
   const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const grade = () => (N.token && N.player && N.player.grade) || UI.S.prefs.grade;
   const student = () => !!(N.token && N.player && N.player.school && N.player.cls && !N.player.teacher);
-  const T = { info: null, run: null, ping: 0 };
+  const T = { info: null, run: null, ping: 0, starting: false, lastReq: null };
 
   function deckFor(content, g) {
     if (content !== "word") return shuffle(L[content] || L.sentence);
@@ -55,7 +55,7 @@
     if (!r.allowed) { $("#ts-info").textContent = "目前沒有開放給你班級的測驗。老師開放後，回到這個畫面就能輸入代號。"; return; }
     const left = r.attempts - r.used;
     $("#ts-info").innerHTML = `${esc(CONTENT[r.content])}測驗 · ${r.minutes} 分鐘 · 已用 ${r.used}/${r.attempts} 次` + (r.best != null ? ` · 目前最高 <b>${r.best}</b> 分` : "") +
-      (left > 0 ? `<br>開始後不能暫停。<b>切換視窗或離開這個頁面，這次測驗就會結束並計分。</b>` : `<br>次數已經用完。`);
+      (left > 0 ? `<br>開始後不能暫停，請留在這個頁面（切換視窗時，時間照樣在算）。<b>關閉或重新整理頁面，這次測驗就會結束並計分。</b>` : `<br>次數已經用完。老師加次數後，重新進入這個畫面就會出現。`);
     $("#ts-code").disabled = $("#btn-ts-go").disabled = left <= 0;
     if (left > 0) $("#ts-code").focus();
   }
@@ -63,10 +63,19 @@
   async function startGraded() {
     const code = $("#ts-code").value.trim(), m = $("#ts-msg");
     if (!code) { m.textContent = "請輸入老師公布的代號。"; return; }
-    $("#btn-ts-go").disabled = true; m.textContent = "連線中…";
-    const r = await call("testStart", { code });
-    $("#btn-ts-go").disabled = false;
-    if (!r || !r.ok) { m.textContent = msg(r); return; }
+    if (T.starting) return;
+    // one id per START press; a press that never got an answer is sent again with the same id, so the
+    // server hands back that attempt instead of using up another one
+    const L0 = T.lastReq, req = L0 && L0.code === code && Date.now() - L0.t < 180000 ? L0.req : Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    T.lastReq = { code, req, t: L0 && L0.req === req ? L0.t : Date.now() };
+    T.starting = true; $("#btn-ts-go").disabled = true; m.textContent = "連線中…全班一起開始時要等一下，請不要重按。";
+    const r = await call("testStart", { code, req }, 4, 45000);
+    T.starting = false; $("#btn-ts-go").disabled = false;
+    if (!r || !r.ok) {
+      m.textContent = r && r.error === "network" ? "伺服器太忙，沒有回應。請等幾秒再按一次開始（不會多扣次數）。" : msg(r);
+      return;
+    }
+    T.lastReq = null;
     $("#ts-code").value = "";
     run({ type: "graded", content: r.content, minutes: r.minutes, id: r.attemptId, full: r.full, passAcc: r.passAcc,
       label: `${CONTENT[r.content]}測驗 · 第 ${r.attemptNo}/${r.attempts} 次` });
@@ -87,14 +96,24 @@
   function run(o) {
     T.run = o; o.done = false;
     UI.startTest({ kind: o.content === "word" ? "word" : "line", deck: o.deck || deckFor(o.content, grade()), seconds: Math.round(o.minutes * 60), label: o.label,
+      keepOnLeave: o.type === "graded", onBack: () => warnBack(),
       onEnd: (G) => finish(o, G, false), onLeave: (G) => finish(o, G, true) });
     clearInterval(T.ping);
-    if (o.type === "graded") T.ping = setInterval(async () => {          // the teacher's live list; also hears "the teacher ended it"
-      const G = UI.S.G; if (!G || !G.test || o.done) return;
-      const s = E.testStats(G);
-      const r = await call("testPing", { attemptId: o.id, correct: s.correct, good: s.good, keys: s.keys, words: s.words }, 1);
-      if (r && r.kicked && !o.done) finish(o, UI.S.G, false, true);
-    }, 10000);
+    if (o.type === "graded") {
+      // the teacher's live list (the first ping also tells the server this attempt really started); also hears "the teacher ended it"
+      const ping = async () => {
+        const G = UI.S.G; if (!G || !G.test || o.done || o.pinging) return;
+        o.pinging = true;
+        const s = E.testStats(G);
+        const r = await call("testPing", { attemptId: o.id, correct: s.correct, good: s.good, keys: s.keys, words: s.words }, 2, 15000);
+        o.pinging = false;
+        if (r && r.kicked && !o.done) finish(o, UI.S.G, false, true);
+      };
+      ping(); T.ping = setInterval(ping, 10000);
+    }
+  }
+  function warnBack() {
+    UI.hintMsg("⚠ 測驗中請留在這個頁面，剛才離開時時間照樣在算。", 6000);
   }
   function counts(o, G) {
     const s = E.testStats(G, o.minutes), P = G.players[0];
@@ -140,7 +159,7 @@
     const body = { correct: c.correct, good: c.good, keys: c.keys, words: c.words, stats: c.stats };
     const send = async () => {
       $("#res-upload").textContent = "成績上傳中，請不要關閉這個頁面。"; again("", null);
-      const r = o.type === "graded" ? await call("testFinish", Object.assign({ attemptId: o.id, left: !!left }, body), 6) : await call("selfFinish", Object.assign({ st: o.st, input: "kb" }, body), 6);
+      const r = o.type === "graded" ? await call("testFinish", Object.assign({ attemptId: o.id, left: !!left }, body), 6, 45000, !!left) : await call("selfFinish", Object.assign({ st: o.st, input: "kb" }, body), 6);
       if (!r || !r.ok) {
         resultCard("上傳失敗", "?", "", o.label, [], (r && r.error !== "network" ? msg(r) : "連不上伺服器。") + "請不要關閉頁面，按「重新上傳」。還是不行就請老師處理。");
         return again("重新上傳", send);
@@ -151,9 +170,9 @@
   }
   function startSelfAgain(o) { UI.show("test"); $("#ts-msg").textContent = ""; startSelf(o.kind || (o.content === "word" || o.content === "sentence" ? o.content : "subject")); }
   function showGraded(o, r, left, kicked) {
-    const title = r.status === "left page" ? "切換了視窗，測驗結束" : r.status === "ended by teacher" || kicked ? "老師結束了這次測驗" : r.status === "rejected (too fast)" ? "成績作廢" : "測驗完成";
+    const title = r.status === "left page" ? "離開了頁面，測驗結束" : r.status === "ended by teacher" || kicked ? "老師結束了這次測驗" : r.status === "rejected (too fast)" ? "成績作廢" : "測驗完成";
     const cells = [["淨 WPM", one(r.net)], ["WPM", one(r.wpm)], ["準確率", Math.round(r.accuracy) + "%"], ["滿分速度", "淨 " + r.full], ["已用次數", r.attemptNo + "/" + r.attempts], ["目前最高", (r.best == null ? r.score : r.best) + " 分"]];
-    const note = (r.status === "left page" ? "離開視窗後的時間也算在內。" : "") + halved(r.accuracy, r.passAcc) + (r.attemptNo < r.attempts ? "還可以再考，取最高分。" : "");
+    const note = (r.status === "left page" ? "離開頁面後的時間也算在內。" : "") + halved(r.accuracy, r.passAcc) + (r.attemptNo < r.attempts ? "還可以再考，取最高分。" : "");
     resultCard(title, String(r.score), "分", o.label, cells, note || "成績已交給老師。");
     again("", null);
     if (r.unlocked && r.unlocked.length) unlocked(r.unlocked);
@@ -277,8 +296,10 @@
   function watch(code) {
     stopWatch(); C.code = code;
     $("#tc-body").innerHTML = `<p class="kb-tip">載入中…</p>`;
-    refresh();
-    C.timer = setInterval(refresh, 6000);
+    const gen = C.gen = (C.gen || 0) + 1;
+    // one request at a time: the next one 6 s after the last answer (no pile-up when the server is slow)
+    const tick = async () => { if (C.gen !== gen || C.code !== code) return; await refresh(); if (C.gen === gen && C.code === code && UI.S.screen === "teacher") C.timer = setTimeout(tick, 6000); };
+    tick();
   }
   const mmss = (s) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
   async function refresh() {
@@ -297,7 +318,7 @@
       <div class="tc-table" style="--n:${max}"><div class="tc-row th"><span>班級</span><span>座號</span><span>姓名</span><span>現在</span>${cols.map((i) => `<span>第 ${i + 1} 次</span>`).join("")}<span>最高分</span><span></span></div>` +
       (r.students.length ? r.students.map((s) => {
         const live = s.attempts.filter((a) => a.status === "started")[0];
-        const now = live ? (live.lost ? `<i class="bad">斷線／沒交</i>` : `<i class="run">考試中 ${mmss(live.secsLeft)}${live.liveWpm != null ? ` · ${Math.round(live.liveWpm)} WPM` : ""}</i>`) : s.attempts.length >= s.allowed ? "考完" : "還可再考";
+        const now = live ? (live.lost ? `<i class="bad">斷線／沒交</i>` : `<i class="run">考試中 ${mmss(live.secsLeft)}${live.liveWpm != null ? ` · ${Math.round(live.liveWpm)} WPM` : ""}</i>`) : (s.used == null ? s.attempts.length : s.used) >= s.allowed ? "考完" : "還可再考";
         return `<div class="tc-row"><span>${esc(s.cls)}</span><span>${esc(s.seat)}</span><b>${esc(s.name)}</b><span>${now}</span>` +
           cols.map((i) => { const a = s.attempts[i]; return `<span>${!a ? "—" : a.status === "started" ? "…" : `${a.score}<small>${a.status === "finished" ? "" : esc(STATUS[a.status] || a.status)}</small>`}</span>`; }).join("") +
           `<span class="best">${s.best ? s.best.score : "—"}</span><span class="ops">` +
@@ -319,7 +340,7 @@
   function csv(r) {
     const max = Math.max(1, ...r.students.map((s) => s.attempts.length)), q = (v) => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
     const head = ["班級", "座號", "姓名", "Email", "已用次數", "最高分", "淨WPM", "WPM", "準確率%"].concat(Array.from({ length: max }, (_, i) => `第${i + 1}次`));
-    const rows = r.students.map((s) => [s.cls, s.seat, s.name, s.email, s.attempts.length, s.best ? s.best.score : "", s.best ? s.best.net : "", s.best ? s.best.wpm : "", s.best ? s.best.acc : ""]
+    const rows = r.students.map((s) => [s.cls, s.seat, s.name, s.email, s.used == null ? s.attempts.length : s.used, s.best ? s.best.score : "", s.best ? s.best.net : "", s.best ? s.best.wpm : "", s.best ? s.best.acc : ""]
       .concat(Array.from({ length: max }, (_, i) => { const a = s.attempts[i]; return !a ? "" : a.status === "started" ? "未完成" : a.score + (a.status === "finished" ? "" : "（" + (STATUS[a.status] || a.status) + "）"); })));
     const text = "\ufeff" + [head].concat(rows).map((x) => x.map(q).join(",")).join("\r\n");
     const a = document.createElement("a");

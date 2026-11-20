@@ -165,8 +165,9 @@
     if (!r || !r.ok) { body.innerHTML = `<div class="lb-msg">${esc(msg(r))}</div>`; return; }
     if (!r.rows.length) { body.innerHTML = `<div class="lb-msg">還沒有人上榜，來當第一名吧。</div>`; }
     else {
-      const showCls = B.scope === "grade" || B.scope === "school";
-      body.innerHTML = r.rows.map((x) => `<div class="lb-row${x.me ? " me" : ""}"><i>${x.rank}</i><b>${esc(x.name)}${showCls && x.cls ? `<small>${esc(x.cls)}</small>` : ""}</b>` +
+      // class + seat no. on every board (Edwin 2026-11-20), e.g. J205-12
+      const clsSeat = (x) => x.cls ? esc(x.cls) + (x.seat ? "-" + esc(x.seat) : "") : "";
+      body.innerHTML = r.rows.map((x) => `<div class="lb-row${x.me ? " me" : ""}"><i>${x.rank}</i><b>${esc(x.name)}${x.cls ? `<small>${clsSeat(x)}</small>` : ""}</b>` +
         (all ? `<em>${esc((UI.MODES[x.mode] || "").replace("模式", ""))} · ${esc(UI.DIFFS[x.diff] || "")}</em>` : "") +
         (test ? `<span class="sc">${Number(x.score).toFixed(1)}</span><span>${x.wave} 級</span><span>${Math.round(x.wpm)} WPM</span><span>${Math.round(x.acc)}%</span></div>`
           : `<span class="sc">${Number(x.score).toLocaleString()}</span><span>第 ${x.wave} 波</span><span>${Math.round(x.wpm)} WPM</span><span>${Math.round(x.acc)}%</span></div>`)).join("");

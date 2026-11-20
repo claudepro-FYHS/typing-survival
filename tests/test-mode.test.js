@@ -134,6 +134,28 @@ test("teacher console: live list, end an attempt, extra attempt, close; only you
   assert.strictEqual(post({ action: "tUpdate", token: L, code: CODE, status: "open" }).error, "not_your_test");
 });
 
+test("a whole class at once: a retried START gets the same attempt; an attempt whose page never started does not count", () => {
+  const c = post({ action: "tCreate", token: L, classes: "J3", code: "RETRY1", attempts: 2 }); fresh();
+  assert.ok(c.ok, JSON.stringify(c));
+  const s1 = post({ action: "testStart", token: J3, code: "RETRY1", req: "press1" });
+  const s2 = post({ action: "testStart", token: J3, code: "RETRY1", req: "press1" });   // the page's network retry of the same press
+  assert.deepStrictEqual([s1.ok, s2.attemptId, s2.attemptNo], [true, s1.attemptId, 1]);
+  assert.strictEqual(sheet("TestAttempts").filter((x) => x[1] === "RETRY1").length, 1, "one row, not two");
+  wait(200);                                                            // that page never pinged (the answer got lost)
+  let info = post({ action: "testInfo", token: J3 });
+  assert.deepStrictEqual([info.used, info.history[0].status], [0, "not started"], "not counted");
+  const s3 = post({ action: "testStart", token: J3, code: "RETRY1", req: "press2" });
+  assert.deepStrictEqual([s3.ok, s3.attemptNo], [true, 1]);
+  post({ action: "testPing", token: J3, attemptId: s3.attemptId, keys: 0 }); wait(200);
+  info = post({ action: "testInfo", token: J3 });
+  assert.deepStrictEqual([info.used, info.history[1].status], [1, "started"], "a page that pinged keeps its attempt");
+  const m = post({ action: "tMonitor", token: L, code: "RETRY1" });
+  assert.deepStrictEqual([m.students[0].used, m.students[0].attempts.length], [1, 2]);
+  wait(120);
+  assert.strictEqual(finish(J3, s3.attemptId, typed(30, 100, 5)).status, "finished");
+  post({ action: "tUpdate", token: L, code: "RETRY1", status: "closed" }); fresh();
+});
+
 test("sentence and subject tests: what each grade types, and their own full-marks speed", () => {
   assert.deepStrictEqual(["J203", "S1S2", "S2S3", "J304"].map((c) => ctx.testContent_("subject", c)), ["sentence", "excel", "c", "sentence"]);
   const cfg = ctx.testConfig_();

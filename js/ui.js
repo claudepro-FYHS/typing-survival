@@ -90,7 +90,11 @@
       players: [{ pid: "p0", name: "", look: { char: eq.char, skin: eq.skin, weapon: eq.weapon } }] });
     $("#hud").classList.add("test");
   }
-  function leftTest() { const o = S.test, G = S.G; if (o && G && G.test && !S.ended && S.screen === "game") { S.ended = true; o.onLeave(G); } }
+  function leftTest(closing) {
+    const o = S.test, G = S.G; if (!o || !G || !G.test || S.ended || S.screen !== "game") return;
+    if (o.keepOnLeave && !closing) { o.away = (o.away || 0) + 1; return; } // graded test: the clock keeps running
+    S.ended = true; o.onLeave(G);
+  }
   function beginHost(players, st) {
     const b = wordsFor(st.grade);
     begin("host", "p0");
@@ -204,7 +208,7 @@
     }
     $("#hint").classList.toggle("on", performance.now() < S.hintT);
   }
-  function hintMsg(msg) { $("#hint").textContent = msg; S.hintT = performance.now() + 2500; }
+  function hintMsg(msg, ms) { $("#hint").textContent = msg; S.hintT = performance.now() + (ms || 2500); }
 
   function frame(now) {
     requestAnimationFrame(frame);
@@ -255,8 +259,12 @@
       if (S.screen === "menu" || (S.screen === "result" && !multi() && !S.again && !S.onMenu)) start();
     }
   });
-  addEventListener("blur", () => { if (S.G && S.G.test) return leftTest(); if (S.screen === "game" && S.role === "solo") show("pause"); });
-  document.addEventListener("visibilitychange", () => { if (document.hidden) leftTest(); });
+  addEventListener("blur", () => { if (S.G && S.G.test) return; if (S.screen === "game" && S.role === "solo") show("pause"); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) return leftTest();
+    const o = S.test; if (o && o.keepOnLeave && o.away && S.G && S.G.test && !S.ended && o.onBack) o.onBack();
+  });
+  addEventListener("pagehide", () => leftTest(true)); // closing / reloading the page ends a graded test
 
   function toMenu() { stopGame(); S.role = "solo"; S.again = null; S.onMenu = null; renderMenu(); show("menu"); }
   $("#btn-start").onclick = () => start();
@@ -265,7 +273,7 @@
   $("#btn-resume").onclick = () => show("game");
   $("#btn-quit").onclick = () => (multi() ? room().leave() : toMenu());
 
-  window.TSUI = { S, $, esc, show, renderMenu, toMenu, settingsText, myEquip, wordsFor, startTest, fmtTime, beginHost, beginGuest, applySnap, hostInput, stopGame, MODES, DIFFS };
+  window.TSUI = { S, $, esc, hintMsg, show, renderMenu, toMenu, settingsText, myEquip, wordsFor, startTest, fmtTime, beginHost, beginGuest, applySnap, hostInput, stopGame, MODES, DIFFS };
   renderMenu(); show("menu");
   requestAnimationFrame(frame);
   window.__TSV = { S, start, finish };   // for tests

@@ -11,7 +11,9 @@
   N.enabled = () => !!(N.url || window.__TSV_FAKE_API) && !N.offline;
 
   // "busy" = the whole class is saving at once: wait a random moment and ask again.
-  N.post = async function (action, body, tries) {
+  // timeoutMs: give up on an answer that never comes (a hung request) and try again; keepalive: still
+  // sent while the page is closing
+  N.post = async function (action, body, tries, timeoutMs, keepalive) {
     tries = tries || 4;
     const payload = Object.assign({ action }, body || {});
     for (let i = 0; ; i++) {
@@ -19,8 +21,11 @@
         let j;
         if (window.__TSV_FAKE_API) j = await window.__TSV_FAKE_API(action, payload);
         else {
-          const res = await fetch(N.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) });
-          j = await res.json();
+          const ctl = timeoutMs && window.AbortController ? new AbortController() : null, timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : 0;
+          try {
+            const res = await fetch(N.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload), signal: ctl ? ctl.signal : undefined, keepalive: !!keepalive });
+            j = await res.json();
+          } finally { clearTimeout(timer); }
         }
         if (j && (j.error === "busy" || j.error === "google_busy")) throw new Error(j.error);
         return j;

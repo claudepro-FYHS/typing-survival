@@ -111,13 +111,17 @@ class FakeDate extends Date {
     await kid.fill("#ts-code", "AB-123"); await kid.keyboard.press("Enter");
     await until(async () => (await scr(kid)) === "game" && (await G(kid, "!!G && G.ents.length === 4")), "second attempt");
     await G(kid, "(P.tDone = 50, P.tGood = 50, P.tKeys = 52, P.tWords = 10, 1)");
-    await kid.evaluate("window.dispatchEvent(new Event('blur'))");
-    await until(async () => /切換了視窗/.test(await kid.textContent("#res-title")), "left-page result");
+    await kid.evaluate("window.dispatchEvent(new Event('blur'))");      // a click outside / a popup: the test goes on
+    await new Promise((r) => setTimeout(r, 600));
+    assert.strictEqual(await scr(kid), "game", "blur must not end a graded test");
+    ok("blur (focus lost) does not end the attempt");
+    await kid.evaluate("window.dispatchEvent(new Event('pagehide'))");  // closing / reloading the page does
+    await until(async () => /離開了頁面/.test(await kid.textContent("#res-title")), "left-page result");
     assert.ok(/^38\s*分$/.test((await kid.textContent("#res-score")).trim()), await kid.textContent("#res-score"));   // 50 presses over the whole minute = 10 WPM x 96% = net 9.6
-    ok("leaving the window ends the attempt at once and scores it over the whole time");
+    ok("closing the page ends the attempt at once and scores it over the whole time");
 
     /* 5. teacher: both attempts, one more attempt, close, download */
-    await until(async () => /切換視窗/.test(await tea.textContent(".tc-table")), "teacher sees the left-page attempt", 12000);
+    await until(async () => /離開頁面/.test(await tea.textContent(".tc-table")), "teacher sees the left-page attempt", 12000);
     const row = tea.locator(".tc-row", { hasText: "林小明" });
     assert.ok(/考完/.test(await row.textContent()) && (await row.locator(".best").textContent()) === "80");
     await row.locator("button[data-extra]").click();
@@ -125,7 +129,7 @@ class FakeDate extends Date {
     await tea.screenshot({ path: path.join(SHOTS, "test-teacher-monitor.png") });
     await tea.click("#btn-tc-csv");
     const csv = await tea.evaluate("TSTest.T.lastCsv");
-    assert.ok(csv.charCodeAt(0) === 0xfeff && /"J203","12","林小明","kid@foonyew.edu.my","2","80","30","30","100","80","38（切換視窗）"/.test(csv), csv);
+    assert.ok(csv.charCodeAt(0) === 0xfeff && /"J203","12","林小明","kid@foonyew.edu.my","2","80","30","30","100","80","38（離開頁面）"/.test(csv), csv);
     await tea.click("#btn-tc-toggle");
     await until(async () => /已關閉/.test(await tea.textContent(".tc-meta")), "closed");
     await kid.click("#btn-menu");
